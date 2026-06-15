@@ -25,7 +25,10 @@ const server = new Server(
       "When calling the consultation (ask_consultant), the parent agent MUST act as a qualified Senior/Tech Lead: " +
       "translate the end-user's informal request into a structured technical brief in Russian, " +
       "pre-gathering the project context (reading relevant files, schemas, or directory structures via your own tools first) " +
-      "so that the council of agents receives comprehensive information for deep analysis.",
+      "so that the council of agents receives comprehensive information for deep analysis. " +
+      "IMPORTANT: Every consultation call is completely stateless. The council of agents does not remember previous sessions or questions. " +
+      "If you make a follow-up or secondary question (e.g. after code modifications), you MUST include the updated file contents and full context again. " +
+      "Never assume agents remember past calls.",
   }
 );
 
@@ -52,7 +55,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 "1) The essence of the task/problem in professional terms. " +
                 "2) Project context (architecture, stack, constraints, relevant code snippets/schemas read from the host). " +
                 "3) Expected analysis results. " +
-                "Never send short one-line queries. Enrich the question with technical details of the project.",
+                "Never send short one-line queries. Enrich the question with technical details of the project. " +
+                "IMPORTANT: Every consultation is completely stateless. The agents do not remember previous questions. " +
+                "When asking a follow-up or secondary question (e.g. after code modifications), you MUST include the updated file contents and full context again.",
             },
             role: {
               type: "string",

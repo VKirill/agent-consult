@@ -1,9 +1,43 @@
-import { AppConfig, AgentConfig, loadConfig, loadRolePrompt, WORKSPACE_ROOT, SERVER_ROOT, AGENT_HOMES_ROOT, setupAgentMcpConfig } from "./config.js";
+import { AppConfig, AgentConfig, loadConfig, loadRolePrompt, loadPersonalityPrompt, WORKSPACE_ROOT, SERVER_ROOT, AGENT_HOMES_ROOT, setupAgentMcpConfig } from "./config.js";
 import { queryOpenRouter, AgentResponse } from "./openrouter-client.js";
 import fs from "fs/promises";
 import path from "path";
 import { spawn } from "child_process";
 import os from "os";
+
+export interface CharacterPersonality {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export const PERSONALITIES: CharacterPersonality[] = [
+  {
+    id: "meticulous",
+    name: "Дотошный перфекционист",
+    description: "Концентрируется на крайних случаях (edge cases), типизации, обработке ошибок и качестве кода."
+  },
+  {
+    id: "questioner",
+    name: "Постоянно спрашивающий исследователь",
+    description: "Задает глубокие вопросы, ставит под сомнение требования, ищет скрытые предпосылки."
+  },
+  {
+    id: "critic",
+    name: "Скептичный критик (Адвокат дьявола)",
+    description: "Ищет уязвимости, проблемы производительности, риски масштабируемости и слабые места."
+  },
+  {
+    id: "minimalist",
+    name: "Прагматичный минималист",
+    description: "Сторонник KISS и YAGNI, предлагает самые простые и чистые решения без избыточного кода."
+  },
+  {
+    id: "innovator",
+    name: "Оптимистичный инноватор",
+    description: "Предлагает современные стандарты 2026 года, новейшие паттерны и оптимизацию DX."
+  }
+];
 
 export interface ConsultationResult {
   success: boolean;
@@ -308,7 +342,8 @@ export async function runAgent(
   timeoutMs: number,
   retryAttempts: number,
   referer?: string,
-  title?: string
+  title?: string,
+  personality?: CharacterPersonality
 ): Promise<AgentResponse> {
   const ISOLATION_INSTRUCTION = 
     "ПРАВИЛА ОКРУЖЕНИЯ И КОНСУЛЬТАЦИИ:\n" +
@@ -321,14 +356,21 @@ export async function runAgent(
   const startTime = Date.now();
   const agentSkills = await loadAgentSkills(agentName);
   
-  const systemPrompt = 
+  let systemPrompt = 
     `${rolePrompt}\n\n` +
     `${ISOLATION_INSTRUCTION}\n\n` +
     `### ДОСТУПНЫЕ НАВЫКИ (SKILLS):\n${agentSkills}\n\n` +
     `${agentConfig.system_prefix || ""}`;
 
+  if (personality) {
+    const personalityPrompt = await loadPersonalityPrompt(personality.id);
+    if (personalityPrompt) {
+      systemPrompt += `\n\n### ТВОЙ ИНДИВИДУАЛЬНЫЙ ХАРАКТЕР (ПЕРСОНАЖ):\n${personalityPrompt}`;
+    }
+  }
+
   try {
-    process.stderr.write(`[Consult Orchestrator] Запуск агента ${agentName} (модель: ${agentConfig.model})...\n`);
+    process.stderr.write(`[Consult Orchestrator] Запуск агента ${agentName} (модель: ${agentConfig.model}, характер: ${personality ? personality.name : "Обычный"})...\n`);
     
     const localAgents = ["codex", "claude", "agy", "gemini", "mimo"];
     let content = "";
@@ -365,7 +407,8 @@ export async function runAgent(
       model: agentConfig.model,
       success: true,
       content,
-      durationMs: Date.now() - startTime
+      durationMs: Date.now() - startTime,
+      personality: personality ? personality.name : undefined
     };
   } catch (err: any) {
     process.stderr.write(`[Consult Orchestrator] Агент ${agentName} завершился с ошибкой: ${err.message}\n`);
@@ -374,7 +417,8 @@ export async function runAgent(
       model: agentConfig.model,
       success: false,
       error: err.message || String(err),
-      durationMs: Date.now() - startTime
+      durationMs: Date.now() - startTime,
+      personality: personality ? personality.name : undefined
     };
   }
 }
@@ -402,6 +446,15 @@ export async function runConsultation(options: {
     rolePrompt = await loadRolePrompt(role);
   }
 
+  // Перемешиваем характеры для распределения между агентами (Fisher-Yates shuffle)
+  const shuffledPersonalities = [...PERSONALITIES];
+  for (let i = shuffledPersonalities.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const temp = shuffledPersonalities[i];
+    shuffledPersonalities[i] = shuffledPersonalities[j];
+    shuffledPersonalities[j] = temp;
+  }
+
   // 2. Параллельный запуск агентов с отслеживанием прогресса в реальном времени
   const activeAgents = new Set(agentsList);
   let completedCount = 0;
@@ -411,7 +464,7 @@ export async function runConsultation(options: {
     process.stderr.write(`[Consult Orchestrator] Ожидаем ответы от агентов: ${Array.from(activeAgents).map(a => a.toUpperCase()).join(", ")} (прошло ${elapsedSec} сек)\n`);
   }, 10000);
 
-  const agentPromises = agentsList.map(async agentName => {
+  const agentPromises = agentsList.map(async (agentName, index) => {
     const agentConfig = config.agents[agentName];
     if (!agentConfig) {
       activeAgents.delete(agentName);
@@ -423,6 +476,9 @@ export async function runConsultation(options: {
         durationMs: 0
       } as AgentResponse;
     }
+
+    // Назначаем характер по кругу из перемешанного списка
+    const personality = shuffledPersonalities[index % shuffledPersonalities.length];
     
     try {
       const res = await runAgent(
@@ -435,12 +491,13 @@ export async function runConsultation(options: {
         config.timeout_ms,
         config.retry_attempts,
         config.openrouter_referer,
-        config.openrouter_title
+        config.openrouter_title,
+        personality
       );
       
       completedCount++;
       activeAgents.delete(agentName);
-      process.stderr.write(`[Consult Orchestrator] [${completedCount}/${agentsList.length}] Агент ${agentName.toUpperCase()} завершил работу за ${(res.durationMs / 1000).toFixed(1)} сек с результатом: ${res.success ? "✅ Успешно" : "❌ Ошибка"}\n`);
+      process.stderr.write(`[Consult Orchestrator] [${completedCount}/${agentsList.length}] Агент ${agentName.toUpperCase()} (${res.personality || "Без характера"}) завершил работу за ${(res.durationMs / 1000).toFixed(1)} сек с результатом: ${res.success ? "✅ Успешно" : "❌ Ошибка"}\n`);
       return res;
     } catch (err: any) {
       completedCount++;
@@ -451,7 +508,8 @@ export async function runConsultation(options: {
         model: agentConfig.model,
         success: false,
         error: err.message || String(err),
-        durationMs: Date.now() - startTime
+        durationMs: Date.now() - startTime,
+        personality: personality ? personality.name : undefined
       } as AgentResponse;
     }
   });
@@ -487,7 +545,7 @@ export async function runConsultation(options: {
     agentsReport += `Ответы специализированных агентов:\n\n`;
     
     for (const res of successfulResponses) {
-      agentsReport += `=== ОТВЕТ АГЕНТА: ${res.agentName.toUpperCase()} (Модель: ${res.model}) ===\n`;
+      agentsReport += `=== ОТВЕТ АГЕНТА: ${res.agentName.toUpperCase()} (Модель: ${res.model}, Характер: ${res.personality || "Обычный"}) ===\n`;
       agentsReport += `${res.content}\n\n`;
     }
 
@@ -542,6 +600,9 @@ export async function runConsultation(options: {
   
   for (const res of agentResults) {
     outputMarkdown += `### 🤖 Агент: ${res.agentName.toUpperCase()} (${res.model})\n`;
+    if (res.personality) {
+      outputMarkdown += `- **Характер**: ${res.personality}\n`;
+    }
     outputMarkdown += `- **Статус**: ${res.success ? "✅ Успешно" : "❌ Ошибка"}\n`;
     outputMarkdown += `- **Время ответа**: ${(res.durationMs / 1000).toFixed(2)} сек\n\n`;
     

@@ -7,6 +7,7 @@ export interface AgentResponse {
   content?: string;
   error?: string;
   durationMs: number;
+  personality?: string;
 }
 
 /**

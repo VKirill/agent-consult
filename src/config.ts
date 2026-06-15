@@ -147,6 +147,21 @@ export async function loadRolePrompt(roleName: string): Promise<string> {
   }
 }
 
+/**
+ * Загружает промпт для указанного характера из папки profiles/personalities
+ */
+export async function loadPersonalityPrompt(personalityId: string): Promise<string> {
+  const safeName = personalityId.replace(/[^a-zA-Z0-9_\-]/g, ""); // Защита от path traversal
+  const profilePath = path.join(SERVER_ROOT, "profiles", "personalities", `${safeName}.md`);
+
+  try {
+    return await fs.readFile(profilePath, "utf-8");
+  } catch (err) {
+    process.stderr.write(`Предупреждение: Профиль характера '${personalityId}' не найден по пути ${profilePath}.\n`);
+    return "";
+  }
+}
+
 async function copyFileSafe(src: string, dest: string, mode?: number): Promise<void> {
   try {
     const stat = await fs.stat(src);
