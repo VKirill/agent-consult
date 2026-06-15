@@ -1,0 +1,7 @@
+node_modules/
+dist/
+config.json
+.env
+project-analysis-report.md
+home/
+*.log

@@ -1,0 +1,57 @@
+{
+  "openrouter_api_key": "YOUR_OPENROUTER_API_KEY",
+  "openrouter_referer": "https://github.com/mcp-server/agent-consult",
+  "openrouter_title": "Agent Consult MCP Server",
+  "timeout_ms": 120000,
+  "retry_attempts": 2,
+  "agents": {
+    "codex": {
+      "model": "openai/gpt-5.5",
+      "system_prefix": "Ты — агент Codex. Твоя сила в алгоритмической точности, глубоком понимании кода и логическом анализе.",
+      "reasoning": {
+        "enable": false,
+        "reasoning_effort": "medium"
+      }
+    },
+    "claude": {
+      "model": "sonnet",
+      "system_prefix": "Ты — агент Claude. Твоя сила в глубоком анализе, отличном стиле изложения текста на русском языке и структурированности ответов.",
+      "reasoning": {
+        "enable": false,
+        "reasoning_effort": "medium"
+      }
+    },
+    "agy": {
+      "model": "google/gemini-3.5-flash",
+      "system_prefix": "Ты — агент Anti-Gravity (agy). Твоя сила в нестандартном мышлении, поиске скрытых взаимосвязей и креативных решениях.",
+      "reasoning": {
+        "enable": false,
+        "reasoning_effort": "medium"
+      }
+    },
+    "gemini": {
+      "model": "google/gemini-2.5-pro",
+      "system_prefix": "Ты — агент Gemini. Твоя сила в мультимодальном мышлении, быстром поиске фактов и широком охвате информации.",
+      "reasoning": {
+        "enable": false,
+        "reasoning_effort": "medium"
+      }
+    },
+    "mimo": {
+      "model": "xiaomi/mimo-v2.5-pro",
+      "system_prefix": "Ты — агент Mimo. Твоя сила в краткости, выделении сути (key takeaways) и критическом подходе к задачам.",
+      "reasoning": {
+        "enable": false,
+        "reasoning_effort": "medium"
+      }
+    }
+  },
+  "synthesis": {
+    "model": "minimax/minimax-m3",
+    "system_prefix": "Ты — Синтезатор Агент Консалт. Твоя задача — провести профессиональную самореализацию и консолидировать ответы 5 специализированных агентов. Выдели уникальные идеи, сопоставь их и сформируй единый экспертный структурированный ответ на русском языке.",
+    "reasoning": {
+      "enable": false,
+      "reasoning_effort": "medium"
+    }
+  }
+}
