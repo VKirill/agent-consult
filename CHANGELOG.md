@@ -1,29 +1,29 @@
-# История изменений (CHANGELOG)
+# Changelog
 
-Все изменения проекта «Агент Консалт» фиксируются в данном документе с описанием причин и архитектурных решений.
+All notable changes to the "Agent Consult" project are documented in this file, detailing the rationale behind each technical decision.
 
 ---
 
 ## [1.1.0] — 2026-06-16
 
-### Добавлено
-*   **Динамический таймаут (Liveness Probe)**: Внедрен алгоритм отслеживания «пульса» активности агентов по потокам `stdout`/`stderr`. Если агент проявляет активность (выполняет шаги, считывает файлы), а до конца таймаута остается менее 45 секунд, лимит времени автоматически продлевается еще на 45 секунд (вплоть до жесткого ограничения в 15 минут).
-*   **Изоляция групп процессов (Process Groups)**: Все дочерние CLI-процессы теперь запускаются в изолированных группах с флагом `detached: true`. При срабатывании таймаута или ошибке, вызов `killProcessGroup` отправляет сигнал `SIGKILL` всей группе процессов (через отрицательный PID в Unix/Linux и `taskkill /pid PID /f /t` в Windows), гарантируя отсутствие зомби-процессов в системе.
-*   **Событийный стриминг (Stream-JSON) для Claude**: Запуск Claude CLI переведен на формат `--output-format stream-json --verbose`. Внедрен построчный JSON-парсер, который логирует каждый вызов и результат инструментов Claude в реальном времени.
-*   **Англоязычная схема инструментов**: Все описания, параметры и инструкции МЦП-сервера в `src/index.ts` переведены на английский язык. Это экономит контекстные токены и повышает точность tool-calling у ИИ-моделей.
-*   **Инструкции по инструментам в профилях ролей**: В каждый файл папки [profiles/](profiles/) добавлен раздел «Доступные MCP-инструменты и их использование», чтобы дочерние агенты четко знали свои права доступа и сценарии вызова утилит `gitnexus`, `repowise`, `postgres`, `perplexity` и др.
-*   **Папка документации (`docs/`)**: Созданы архитектурное описание (`docs/architecture.md`), руководство по решению проблем (`docs/troubleshooting.md`) и спецификация ролей (`docs/roles_and_mcp_mapping.md`).
+### Added
+*   **Dynamic Liveness Probe**: Implemented an activity tracking heartbeat on `stdout`/`stderr` streams of local CLI processes. When any data chunk is printed and less than 45 seconds remain on the countdown, the timeout automatically extends by another 45 seconds (up to a hard limit of 15 minutes).
+*   **Process Group Isolation**: Local child CLI processes now run with `{ detached: true }`. In case of a timeout or crash, `killProcessGroup` sends `SIGKILL` to the entire process group (via negative PID on Unix/Linux and `taskkill /pid PID /f /t` on Windows), preventing orphaned zombie processes.
+*   **Event-based JSON Streaming for Claude**: Claude CLI executions are now configured with `--output-format stream-json --verbose`. An incremental JSON line parser logs tool invocations and results in real time.
+*   **English Schema Descriptions**: Translated all MCP tool registrations, descriptions, title attributes, and server instructions in `src/index.ts` to English to optimize context tokens and improve tool-calling accuracy.
+*   **MCP Tool Docs in Profiles**: Added "Available MCP Tools and Usage" sections to all markdown files in [profiles/](profiles/) to instruct child agents on their permissions and tool usage scenarios.
+*   **System Documentation (`docs/`)**: Added `docs/architecture.md`, `docs/troubleshooting.md`, and `docs/roles_and_mcp_mapping.md`.
 
-### Изменено
-*   Базовый таймаут ожидания ответа увеличен со 120 до **240 секунд (4 минуты)** в `config.json` для стабильного запуска при высоких нагрузках.
+### Changed
+*   Increased the default base timeout from 120 to **240 seconds (4 minutes)** in `config.json` for startup stability under load.
 
 ---
 
 ## [1.0.1] — 2026-06-15
 
-### Добавлено
-*   **Sandbox-изоляция**: Домашние директории агентов перенесены в `${os.homedir()}/.agent-consult/homes/` с правами доступа `0700`. Авторизационные токены копируются с правами `0600`.
-*   **Автоматическое развертывание настроек**: Сервер динамически создает файлы `.claude.json` и `settings.json` для каждого локального агента с жестким отключением наследования глобальных МЦП-серверов (`inheritUser: false`).
+### Added
+*   **Sandbox Isolation**: Relocated agent home environments to `${os.homedir()}/.agent-consult/homes/` with `0700` permissions. Auth credentials are cloned with secure `0600` permissions.
+*   **Automated Config Deployment**: The server dynamically generates local `.claude.json` and `settings.json` configurations for launched agents, disabling global MCP server inheritance (`inheritUser: false`).
 
-### Удалено
-*   Неиспользуемый МЦП-сервер `tavily` исключен из маппингов (оставлен только `perplexity` для маркетолога).
+### Removed
+*   Excluded the unused `tavily` MCP server from mappings (retained only `perplexity` for the marketer role).
