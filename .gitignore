@@ -5,3 +5,4 @@ config.json
 project-analysis-report.md
 home/
 *.log
+.claude/
