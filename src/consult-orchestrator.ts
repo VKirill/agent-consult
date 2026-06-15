@@ -493,10 +493,19 @@ export async function runConsultation(options: {
 
     try {
       process.stderr.write(`[Consult Orchestrator] Запуск профессионального синтеза через ${config.synthesis.model}...\n`);
+      
+      // Динамически загружаем промпт синтезатора из profiles/synthesis.md, если доступен
+      let synthesisPrompt = "";
+      try {
+        synthesisPrompt = await loadRolePrompt("synthesis");
+      } catch (err) {
+        synthesisPrompt = config.synthesis.system_prefix || "Ты — Синтезатор Агент Консалт. Проведи профессиональную самореализацию и консолидируй ответы.";
+      }
+
       synthesisContent = await queryOpenRouter(
         apiKey,
         config.synthesis.model,
-        config.synthesis.system_prefix || "Ты — Синтезатор Агент Консалт. Проведи профессиональную самореализацию и консолидируй ответы.",
+        synthesisPrompt,
         agentsReport,
         config.synthesis,
         config.timeout_ms,
