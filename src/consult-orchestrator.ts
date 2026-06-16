@@ -5,6 +5,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import os from "os";
+import { randomUUID } from "crypto";
 
 export interface CharacterPersonality {
   id: string;
@@ -168,10 +169,10 @@ async function queryLocalCLI(
 
   if (agentName === "grok") {
     const tempDir = os.tmpdir();
-    const rand = Math.random().toString(36).substring(7);
-    tempPromptFile = path.join(tempDir, `grok_prompt_${rand}.txt`);
+    tempPromptFile = path.join(tempDir, `grok_prompt_${randomUUID()}.txt`);
     const fullPrompt = `${systemPrompt}\n\nВОПРОС:\n${question}`;
-    await fs.writeFile(tempPromptFile, fullPrompt, "utf-8");
+    // Создаем файл с правами 0o600 для защиты от чтения другими пользователями
+    await fs.writeFile(tempPromptFile, fullPrompt, { encoding: "utf-8", mode: 0o600 });
   }
 
   return new Promise((resolve, reject) => {
@@ -207,7 +208,7 @@ async function queryLocalCLI(
         defaultBinPath = path.join(userHome, ".local", "bin", "claude");
         globalBinName = "claude";
         const modelArg = (cleanModel === "sonnet" || cleanModel === "opus" || cleanModel === "haiku") ? cleanModel : "sonnet";
-        args = ["-p", "--model", modelArg, "--output-format", "stream-json", "--verbose", "--permission-mode", "auto"];
+        args = ["-p", "--model", modelArg, "--output-format", "stream-json", "--verbose", "--permission-mode", "plan"];
         break;
       case "agy":
         defaultBinPath = path.join(userHome, ".local", "bin", "agy");
@@ -229,8 +230,7 @@ async function queryLocalCLI(
         globalBinName = "grok";
         args = [
           "--no-memory",
-          "--always-approve",
-          "--permission-mode", "auto",
+          "--permission-mode", "plan",
           "--prompt-file", tempPromptFile
         ];
         if (cleanModel && cleanModel !== "grok") {
@@ -248,27 +248,25 @@ async function queryLocalCLI(
 
     const agentHome = path.join(AGENT_HOMES_ROOT, agentName);
 
-    const cleanEnv = { ...process.env };
-    if (agentName === "codex") {
-      delete cleanEnv.OPENAI_API_KEY;
-      delete cleanEnv.OPENAI_API_BASE;
-      delete cleanEnv.OPENAI_ORGANIZATION;
-    }
-
     const isWindows = process.platform === "win32";
+    
+    // Безопасное отфильтрованное окружение дочернего процесса (PoLP)
+    const childEnv: Record<string, string> = {
+      HOME: agentHome,
+      PATH: process.env.PATH || "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      LANG: process.env.LANG || "en_US.UTF-8",
+      TERM: "dumb",
+      NO_COLOR: "1",
+      FORCE_COLOR: "0",
+      GEMINI_CLI_TRUST_WORKSPACE: "true",
+      GEMINI_CLI_NO_RELAUNCH: "1",
+      PAGER: "cat"
+    };
+
     const child = spawn(binPath, args, {
       cwd: WORKSPACE_ROOT,
       detached: !isWindows,
-      env: {
-        ...cleanEnv,
-        HOME: agentHome,
-        GEMINI_CLI_TRUST_WORKSPACE: "true",
-        GEMINI_CLI_NO_RELAUNCH: "1",
-        NO_COLOR: "1",
-        FORCE_COLOR: "0",
-        TERM: "dumb",
-        PAGER: "cat"
-      }
+      env: childEnv
     });
 
     if (child.pid) {

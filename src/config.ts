@@ -459,7 +459,7 @@ export async function ensureAgentHomeDirs(): Promise<void> {
   
   // Генерируем чистый минимальный config.toml для Codex
   const codexConfigPath = path.join(codexHome, ".codex", "config.toml");
-  const codexConfigContent = `model = "gpt-5.5"\napproval_policy = "never"\nsandbox_mode = "danger-full-access"\n`;
+  const codexConfigContent = `model = "gpt-5.5"\napproval_policy = "on-request"\nsandbox_mode = "workspace-write"\n`;
   try {
     await fs.mkdir(path.dirname(codexConfigPath), { recursive: true, mode: 0o700 });
     await fs.writeFile(codexConfigPath, codexConfigContent, "utf-8");
@@ -509,8 +509,8 @@ export async function ensureAgentHomeDirs(): Promise<void> {
   const mimoConfigContent = JSON.stringify({
     "$schema": "https://opencode.ai/config.json",
     "permission": {
-      "external_directory": "allow",
-      "doom_loop": "allow"
+      "external_directory": "deny",
+      "doom_loop": "deny"
     }
   }, null, 2);
   try {
