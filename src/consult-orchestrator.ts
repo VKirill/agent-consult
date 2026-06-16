@@ -548,13 +548,38 @@ export async function runAgent(
       await setupAgentMcpConfig(agentName, role);
       
       process.stderr.write(`[Consult Orchestrator] Вызов локального CLI для агента ${agentName}...\n`);
-      content = await queryLocalCLI(
-        agentName,
-        agentConfig,
-        systemPrompt,
-        question,
-        timeoutMs
-      );
+      try {
+        content = await queryLocalCLI(
+          agentName,
+          agentConfig,
+          systemPrompt,
+          question,
+          timeoutMs
+        );
+      } catch (cliErr: any) {
+        const errStr = cliErr.message || String(cliErr);
+        const isAuthError = errStr.includes("authentication_failed") || 
+                            errStr.includes("authenticate") || 
+                            errStr.includes("credentials") || 
+                            errStr.includes("401");
+                            
+        if (isAuthError) {
+          process.stderr.write(`[Consult Orchestrator] ⚠️ Обнаружена ошибка авторизации для локального агента ${agentName}. Повторно копируем credentials с хоста и перезапускаем...\n`);
+          // Обновляем credentials на лету
+          await ensureAgentHomeDirs();
+          
+          // Пробуем запустить повторно
+          content = await queryLocalCLI(
+            agentName,
+            agentConfig,
+            systemPrompt,
+            question,
+            timeoutMs
+          );
+        } else {
+          throw cliErr;
+        }
+      }
     } else {
       process.stderr.write(`[Consult Orchestrator] Вызов OpenRouter для агента ${agentName}...\n`);
       content = await queryOpenRouter(
