@@ -88,12 +88,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 "List of specific agents to query (e.g. ['codex', 'gemini']). " +
                 "Defaults to all 5 available agents: ['codex', 'claude', 'agy', 'gemini', 'mimo'].",
             },
-            skip_synthesis: {
+            request_raw_responses: {
               type: "boolean",
               default: false,
               description: 
-                "If set to true, the server returns only the raw individual agent responses " +
-                "without the final Minimax-M3 synthesis phase. Useful for saving tokens and time.",
+                "CRITICAL: Do NOT set to true unless the user explicitly requested raw, unsynthesized answers. " +
+                "By default (false), the server performs advanced synthesis (Self-Realization) to consolidate all opinions, " +
+                "resolve conflicts, and return a single, coherent technical report. Setting this to true returns raw data " +
+                "from individual agents, bypassing the synthesizer and increasing cognitive load.",
             }
           },
           required: ["question"],
@@ -199,7 +201,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const question = args?.question;
     const role = (args?.role as string) || "general";
     const customRolePrompt = args?.custom_role_prompt as string | undefined;
-    const skipSynthesis = !!args?.skip_synthesis;
+    const skipSynthesis = !!(args?.request_raw_responses || args?.skip_synthesis);
     const targetAgentsList = (args?.agents as string[]) || ["codex", "claude", "agy", "gemini", "mimo"];
 
     if (typeof question !== "string" || question.trim() === "") {
