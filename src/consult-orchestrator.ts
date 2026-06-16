@@ -1,6 +1,7 @@
 import { AppConfig, AgentConfig, loadConfig, loadRolePrompt, loadPersonalityPrompt, WORKSPACE_ROOT, SERVER_ROOT, AGENT_HOMES_ROOT, setupAgentMcpConfig } from "./config.js";
 import { queryOpenRouter, AgentResponse } from "./openrouter-client.js";
 import fs from "fs/promises";
+import { existsSync } from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import os from "os";
@@ -93,10 +94,13 @@ async function queryLocalCLI(
     const cleanModel = model.replace(/^(openai|anthropic|google|xiaomi)\//, "");
 
     const userHome = os.homedir();
+    let defaultBinPath = "";
+    let globalBinName = "";
 
     switch (agentName) {
       case "codex":
-        binPath = path.join(userHome, ".npm-global", "bin", "codex");
+        defaultBinPath = path.join(userHome, ".npm-global", "bin", "codex");
+        globalBinName = "codex";
         args = ["exec", "-", "--model", cleanModel];
         if (agentConfig.reasoning?.enable) {
           const effort = agentConfig.reasoning.reasoning_effort || "medium";
@@ -104,25 +108,31 @@ async function queryLocalCLI(
         }
         break;
       case "claude":
-        binPath = path.join(userHome, ".local", "bin", "claude");
+        defaultBinPath = path.join(userHome, ".local", "bin", "claude");
+        globalBinName = "claude";
         const modelArg = (cleanModel === "sonnet" || cleanModel === "opus" || cleanModel === "haiku") ? cleanModel : "sonnet";
         args = ["-p", "--model", modelArg, "--output-format", "stream-json", "--verbose"];
         break;
       case "agy":
-        binPath = path.join(userHome, ".local", "bin", "agy");
+        defaultBinPath = path.join(userHome, ".local", "bin", "agy");
+        globalBinName = "agy";
         args = ["-p", "-"];
         break;
       case "gemini":
-        binPath = path.join(userHome, ".local", "bin", "agy");
+        defaultBinPath = path.join(userHome, ".local", "bin", "agy");
+        globalBinName = "agy";
         args = ["-p", "-"];
         break;
       case "mimo":
-        binPath = path.join(userHome, ".mimocode", "bin", "mimo");
+        defaultBinPath = path.join(userHome, ".mimocode", "bin", "mimo");
+        globalBinName = "mimo";
         args = ["run", "--pure"];
         break;
       default:
         return reject(new Error(`Неизвестный локальный агент: ${agentName}`));
     }
+
+    binPath = existsSync(defaultBinPath) ? defaultBinPath : globalBinName;
 
     const agentHome = path.join(AGENT_HOMES_ROOT, agentName);
 
