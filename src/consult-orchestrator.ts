@@ -460,6 +460,59 @@ export async function runAgent(
   }
 }
 
+export function isLocalAgentAvailable(agentName: string): boolean {
+  const userHome = os.homedir();
+  let defaultBinPath = "";
+  let globalBinName = "";
+
+  switch (agentName) {
+    case "codex":
+      defaultBinPath = path.join(userHome, ".npm-global", "bin", "codex");
+      globalBinName = "codex";
+      break;
+    case "claude":
+      defaultBinPath = path.join(userHome, ".local", "bin", "claude");
+      globalBinName = "claude";
+      break;
+    case "agy":
+    case "gemini":
+      defaultBinPath = path.join(userHome, ".local", "bin", "agy");
+      globalBinName = "agy";
+      break;
+    case "mimo":
+      defaultBinPath = path.join(userHome, ".mimocode", "bin", "mimo");
+      globalBinName = "mimo";
+      break;
+    default:
+      return false;
+  }
+
+  if (existsSync(defaultBinPath)) {
+    return true;
+  }
+
+  // Проверка в PATH
+  const envPath = process.env.PATH || "";
+  const pathDirs = envPath.split(path.delimiter);
+  const isWindows = process.platform === "win32";
+  const extensions = isWindows ? [".exe", ".cmd", ".bat", ""] : [""];
+
+  for (const dir of pathDirs) {
+    for (const ext of extensions) {
+      const fullPath = path.join(dir, globalBinName + ext);
+      try {
+        if (existsSync(fullPath)) {
+          return true;
+        }
+      } catch (e) {
+        // Игнорируем ошибки доступа
+      }
+    }
+  }
+
+  return false;
+}
+
 /**
  * Оркестрирует опрос группы агентов и последующий синтез ответов
  */
@@ -501,6 +554,8 @@ export async function runConsultation(options: {
     process.stderr.write(`[Consult Orchestrator] Ожидаем ответы от агентов: ${Array.from(activeAgents).map(a => a.toUpperCase()).join(", ")} (прошло ${elapsedSec} сек)\n`);
   }, 10000);
 
+  const localAgents = ["codex", "claude", "agy", "gemini", "mimo"];
+
   const agentPromises = agentsList.map(async (agentName, index) => {
     let agentConfig = config.agents[agentName];
     if (!agentConfig) {
@@ -510,6 +565,18 @@ export async function runConsultation(options: {
         model: "unknown",
         success: false,
         error: `Агент с именем '${agentName}' не найден в конфигурации.`,
+        durationMs: 0
+      } as AgentResponse;
+    }
+
+    if (localAgents.includes(agentName) && !isLocalAgentAvailable(agentName)) {
+      activeAgents.delete(agentName);
+      process.stderr.write(`[Consult Orchestrator] Локальный агент ${agentName.toUpperCase()} выключен: исполняемый файл не найден в системе.\n`);
+      return {
+        agentName,
+        model: agentConfig.model,
+        success: false,
+        error: `Локальный агент '${agentName}' не установлен на этой машине. Опрос пропущен.`,
         durationMs: 0
       } as AgentResponse;
     }
