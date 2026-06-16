@@ -145,6 +145,21 @@ Role prompts are located in the [profiles/](file:///home/ubuntu/mcp_server/agent
 
 ---
 
+## 🛡️ Security Auditor Mode & DevSecOps Tools
+
+The server includes a specialized **Security Auditor (`security_auditor`)** mode designed for static/dynamic code analysis, vulnerability scanning, and secure architecture modeling:
+
+* **Single High-Reasoning Execution**: When the `security_auditor` role is selected, the server automatically bypasses multi-agent polling and consensus synthesis. It queries a single local **Codex** agent running the state-of-the-art `openai/gpt-5.5` model with maximum reasoning settings (`reasoning_effort: "high"`).
+* **Supply Chain & SAST/DAST Integration**: The agent is equipped with special DevSecOps tools:
+  - **`sentinel`**: Orchestrates security tools such as **Trivy** (for scanning dependencies/container images), **Semgrep** (Static Application Security Testing - SAST), and **OWASP ZAP** (Dynamic Application Security Testing - DAST) under a single interface.
+  - **`skylos`**: Detects hardcoded secrets, API tokens, and vulnerabilities (taint analysis) for JavaScript, TypeScript, Python, and Go codebases.
+* **Testing Security Auditor**: You can run the integrated DevSecOps audit test using:
+  ```bash
+  node dist/test-security-auditor.js
+  ```
+
+---
+
 ## 🚀 Installation & Quick Start
 
 ### 1. Clone & Build

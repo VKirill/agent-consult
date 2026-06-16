@@ -144,6 +144,21 @@ Die Rollen-Prompts liegen im Ordner [profiles/](file:///home/ubuntu/mcp_server/a
 
 ---
 
+## 🛡️ Sicherheitsauditor-Modus & DevSecOps-Tools
+
+Der Server enthält einen speziellen **Sicherheitsauditor-Modus (`security_auditor`)** für statische/dynamische Code-Analysen, Schwachstellen-Scans und sichere Architektur-Modellierung:
+
+* **Einzel-Agenten-Ausführung mit tiefem Denken (Single High-Reasoning)**: Wenn die Rolle `security_auditor` ausgewählt ist, überspringt der Server automatisch die Multi-Agenten-Abfrage und Synthese-Phase. Er fragt stattdessen einen einzelnen lokalen **Codex**-Agenten ab, der das Flaggschiff-Modell `openai/gpt-5.5` mit maximaler Reasoning-Einstellung (`reasoning_effort: "high"`) ausführt.
+* **SAST/DAST- und Supply-Chain-Sicherheitsintegration**: Dem Agenten stehen spezialisierte DevSecOps MCP-Tools zur Verfügung:
+  - **`sentinel`**: Ein zentraler Sicherheits-Orchestrator zur Ausführung von **Trivy** (zum Scannen von Abhängigkeiten und Container-Images auf Schwachstellen), **Semgrep** (Static Application Security Testing - SAST) und **OWASP ZAP** (Dynamic Application Security Testing - DAST) über eine einheitliche Schnittstelle.
+  - **`skylos`**: Ein spezialisierter Code-Analysator zur Erkennung von hardcodierten Passwörtern, API-Token-Leaks und Schwachstellen im Datenfluss (Taint-Analyse) in JavaScript-, TypeScript-, Python- und Go-Projekten.
+* **Sicherheitsauditor-Test**: Sie können den integrierten Sicherheitsanalyse-Test mit folgendem Befehl starten:
+  ```bash
+  node dist/test-security-auditor.js
+  ```
+
+---
+
 ## 🚀 Installation & Schnellstart
 
 ### 1. Klonen & Kompilieren

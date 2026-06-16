@@ -144,6 +144,21 @@ Las instrucciones de rol se encuentran en la carpeta [profiles/](file:///home/ub
 
 ---
 
+## 🛡️ Modo de Auditoría de Seguridad y Herramientas DevSecOps
+
+El servidor incluye un modo especializado de **Auditor de Seguridad (`security_auditor`)** diseñado para el análisis estático/dinámico de código, escaneo de vulnerabilidades y modelado de arquitectura segura:
+
+* **Ejecución con razonamiento profundo único (Single High-Reasoning)**: Cuando se selecciona el rol `security_auditor`, el servidor omite automáticamente la orquestación multi-agente y la fase de síntesis. En su lugar, realiza una consulta directa a un único agente local **Codex** utilizando el modelo insignia `openai/gpt-5.5` con la máxima configuración de razonamiento (`reasoning_effort: "high"`).
+* **Integración con SAST/DAST y Seguridad de dependencias**: El agente tiene acceso a herramientas DevSecOps especializadas de MCP:
+  - **`sentinel`**: Un orquestador unificado de herramientas de seguridad que permite ejecutar **Trivy** (para escanear dependencias y vulnerabilidades en imágenes de contenedores), **Semgrep** (Static Application Security Testing - SAST) y **OWASP ZAP** (Dynamic Application Security Testing - DAST).
+  - **`skylos`**: Un analizador especializado para detectar secretos hardcodeados, fugas de tokens de API y flujos de datos vulnerables (taint analysis) en proyectos de JavaScript, TypeScript, Python y Go.
+* **Prueba de auditoría de seguridad**: Puede iniciar la prueba integrada de análisis de seguridad ejecutando el comando:
+  ```bash
+  node dist/test-security-auditor.js
+  ```
+
+---
+
 ## 🚀 Instalación y Inicio rápido
 
 ### 1. Clonar y Construir

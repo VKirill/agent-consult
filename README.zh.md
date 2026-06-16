@@ -144,6 +144,21 @@ flowchart TD
 
 ---
 
+## 🛡️ 安全审计模式与 DevSecOps 工具
+
+服务端包含一个专门的**安全审计员 (`security_auditor`)**模式，专为静态/动态代码分析、漏洞扫描和安全架构建模而设计：
+
+* **单智能体深度推理执行**：当选择 `security_auditor` 角色时，服务端会自动绕过常规的多智能体会诊和合成阶段。它直接查询单个本地 **Codex** 智能体，使用旗舰级 `openai/gpt-5.5` 模型并开启最高推理设置 (`reasoning_effort: "high"`)。
+* **SAST/DAST 和依赖链安全集成**：该角色配备了专门的 DevSecOps MCP 工具：
+  - **`sentinel`**：安全工具集中编排器，支持在单一接口下运行 **Trivy**（扫描依赖项与容器镜像漏洞）、**Semgrep**（静态应用程序安全测试 - SAST）和 **OWASP ZAP**（动态应用程序安全测试 - DAST）。
+  - **`skylos`**：专门针对 JavaScript、TypeScript、Python 和 Go 代码库硬编码密钥、API 令牌泄露以及漏洞数据流（taint analysis）的扫描分析器。
+* **安全审计测试**：您可以使用以下命令运行内置的 DevSecOps 审计测试：
+  ```bash
+  node dist/test-security-auditor.js
+  ```
+
+---
+
 ## 🚀 安装与快速开始
 
 ### 1. 克隆与构建
