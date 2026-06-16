@@ -2,6 +2,20 @@
 
 All notable changes to the "Agent Consult" project are documented in this file, detailing the rationale behind each technical decision.
 
+## [1.2.0] — 2026-06-16
+
+### Added
+*   **Single-Agent High Reasoning Mode for Security**: Added specialized mode for `security_auditor` that runs only the `codex` agent on the `openai/gpt-5.5` model with high reasoning effort (`model_reasoning_effort = "high"` / `-c model_reasoning_effort=high`).
+*   **New Role Profiles & Personalities**: Created `security_auditor`, `qa_engineer`, and `data_engineer` profiles, and introduced `pragmatist` and `security_guard` personalities.
+*   **Global Agent Skills**: Added `owasp-top10.md`, `tdd-methodology.md`, and `adr-template.md` skills.
+*   **Context7 MCP Server Support**: Integrated `context7` MCP server to `programmer`, `web_architect`, `app_architect`, and `general` roles for searching library docs.
+*   **Auto-bypass Synthesis for Single Agents**: Implemented `autoSkipSynthesis` logic when a single agent is queried, optimizing execution speed and token cost.
+*   **Automated Security Verification**: Created `test-security-auditor.ts` test case verifying single agent high-reasoning execution flow.
+
+### Changed
+*   **Skill Loading Optimization**: Switched from loading full skill file contents to injecting a list of paths and instructions, forcing agents to read skills only when needed.
+*   **Gemini Agent Disabled by Default**: Removed `gemini` from the default `targetAgentsList` (now Codex, Claude, agy, Mimo) to protect context limits.
+
 ---
 
 ## [1.1.0] — 2026-06-16

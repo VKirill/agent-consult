@@ -38,6 +38,16 @@ export const PERSONALITIES: CharacterPersonality[] = [
     id: "innovator",
     name: "Оптимистичный инноватор",
     description: "Предлагает современные стандарты 2026 года, новейшие паттерны и оптимизацию DX."
+  },
+  {
+    id: "pragmatist",
+    name: "Прагматик-дедлайнер",
+    description: "Ориентируется на ROI и time-to-market. Предлагает решения «здесь и сейчас», балансируя между перфекционизмом и избыточными инновациями."
+  },
+  {
+    id: "security_guard",
+    name: "Офицер безопасности",
+    description: "Анализирует технические решения на предмет векторов атак, утечки секретов, уязвимостей и прав доступа."
   }
 ];
 
@@ -70,7 +80,7 @@ function stripAnsi(str: string): string {
 
 async function queryLocalCLI(
   agentName: string,
-  model: string,
+  agentConfig: AgentConfig,
   systemPrompt: string,
   question: string,
   timeoutMs: number
@@ -78,6 +88,7 @@ async function queryLocalCLI(
   return new Promise((resolve, reject) => {
     let binPath = "";
     let args: string[] = [];
+    const model = agentConfig.model;
 
     const cleanModel = model.replace(/^(openai|anthropic|google|xiaomi)\//, "");
 
@@ -87,6 +98,10 @@ async function queryLocalCLI(
       case "codex":
         binPath = path.join(userHome, ".npm-global", "bin", "codex");
         args = ["exec", "-", "--model", cleanModel];
+        if (agentConfig.reasoning?.enable) {
+          const effort = agentConfig.reasoning.reasoning_effort || "medium";
+          args.push("-c", `model_reasoning_effort=${effort}`);
+        }
         break;
       case "claude":
         binPath = path.join(userHome, ".local", "bin", "claude");
@@ -288,33 +303,30 @@ async function queryLocalCLI(
 }
 
 /**
- * Читает и объединяет скиллы из корневой папки skills/ и изолированной папки home/<agentName>/skills/
- * Поддерживает как одиночные файлы, так и скиллы-папки (ищет файлы SKILL.md, README.md и *.md внутри папок).
+ * Возвращает список доступных скиллов (файлов/модулей) с их путями.
+ * Контент файлов не загружается, чтобы не перегружать контекст агента.
+ * Агент должен самостоятельно прочесть нужные файлы через инструменты чтения файлов при необходимости.
  */
 async function loadAgentSkills(agentName: string): Promise<string> {
   const globalSkillsDir = path.join(SERVER_ROOT, "skills");
   const agentSkillsDir = path.join(AGENT_HOMES_ROOT, agentName, "skills");
   
-  const skills: string[] = [];
+  const skillsList: string[] = [];
 
-  const readSkillsFromDir = async (dirPath: string) => {
+  const scanSkillsFromDir = async (dirPath: string, typeLabel: "Глобальный" | "Локальный") => {
     try {
       const items = await fs.readdir(dirPath, { withFileTypes: true });
       for (const item of items) {
         const fullPath = path.join(dirPath, item.name);
         
         if (item.isFile()) {
-          // Читаем одиночные файлы в корне папки skills
           const ext = path.extname(item.name).toLowerCase();
           if (ext === ".md" || ext === ".txt" || ext === ".json") {
-            const content = await fs.readFile(fullPath, "utf-8");
-            skills.push(`=== НАВЫК (Файл): ${item.name} ===\n${content}`);
+            skillsList.push(`- **${item.name}** (${typeLabel} файл навыка)\n  Путь: ${fullPath}\n  Инструкция: Если тебе нужна информация по этому навыку, прочитай файл по указанному пути с помощью своих инструментов чтения файлов.`);
           }
         } else if (item.isDirectory()) {
-          // Сканируем папку-скилл
           try {
             const subItems = await fs.readdir(fullPath);
-            // Ищем SKILL.md или README.md или любые md-файлы
             const skillFiles = subItems.filter(f => {
               const nameLower = f.toLowerCase();
               return nameLower === "skill.md" || nameLower === "readme.md" || f.endsWith(".md");
@@ -322,27 +334,26 @@ async function loadAgentSkills(agentName: string): Promise<string> {
 
             for (const skillFile of skillFiles) {
               const skillFilePath = path.join(fullPath, skillFile);
-              const content = await fs.readFile(skillFilePath, "utf-8");
-              skills.push(`=== НАВЫК (Модуль): ${item.name}/${skillFile} ===\n${content}`);
+              skillsList.push(`- **${item.name}/${skillFile}** (${typeLabel} модуль навыка)\n  Путь: ${skillFilePath}\n  Инструкция: Если тебе нужна информация по этому навыку, прочитай файл по указанному пути с помощью своих инструментов чтения файлов.`);
             }
           } catch (subErr) {
-            // Игнорируем ошибки чтения подпапок
+            // Игнорируем
           }
         }
       }
     } catch (err: any) {
-      // Игнорируем ошибки, если директория не читается
+      // Игнорируем
     }
   };
 
-  await readSkillsFromDir(globalSkillsDir);
-  await readSkillsFromDir(agentSkillsDir);
+  await scanSkillsFromDir(globalSkillsDir, "Глобальный");
+  await scanSkillsFromDir(agentSkillsDir, "Локальный");
 
-  if (skills.length === 0) {
-    return "Локальные навыки не загружены (директории пусты).";
+  if (skillsList.length === 0) {
+    return "Доступные файлы навыков не обнаружены (директории пусты).";
   }
 
-  return skills.join("\n\n");
+  return "Перед началом работы ознакомься со списком доступных файлов навыков (skills). Ты ОБЯЗАН использовать свои инструменты чтения файлов для просмотра содержимого этих файлов, если тебе требуется применить соответствующий навык:\n\n" + skillsList.join("\n\n");
 }
 
 /**
@@ -398,7 +409,7 @@ export async function runAgent(
       process.stderr.write(`[Consult Orchestrator] Вызов локального CLI для агента ${agentName}...\n`);
       content = await queryLocalCLI(
         agentName,
-        agentConfig.model,
+        agentConfig,
         systemPrompt,
         question,
         timeoutMs
@@ -481,7 +492,7 @@ export async function runConsultation(options: {
   }, 10000);
 
   const agentPromises = agentsList.map(async (agentName, index) => {
-    const agentConfig = config.agents[agentName];
+    let agentConfig = config.agents[agentName];
     if (!agentConfig) {
       activeAgents.delete(agentName);
       return {
@@ -491,6 +502,17 @@ export async function runConsultation(options: {
         error: `Агент с именем '${agentName}' не найден в конфигурации.`,
         durationMs: 0
       } as AgentResponse;
+    }
+
+    if (role === "security_auditor" && agentName === "codex") {
+      agentConfig = {
+        ...agentConfig,
+        model: "openai/gpt-5.5",
+        reasoning: {
+          enable: true,
+          reasoning_effort: "high"
+        }
+      };
     }
 
     // Назначаем характер по кругу из перемешанного списка

@@ -52,12 +52,15 @@ sequenceDiagram
 
 ```typescript
 const ROLE_MCP_MAPPING: Record<string, string[]> = {
-  programmer: ["gitnexus", "repowise"],
-  web_architect: ["gitnexus", "repowise", "vue-docs", "shadcn", "nuxt-ui"],
+  programmer: ["gitnexus", "repowise", "context7"],
+  web_architect: ["gitnexus", "repowise", "vue-docs", "shadcn", "nuxt-ui", "context7"],
   system_architect: ["gitnexus", "repowise", "postgres"],
-  app_architect: ["gitnexus", "repowise", "postgres"],
+  app_architect: ["gitnexus", "repowise", "postgres", "context7"],
   marketer: ["perplexity"],
-  general: ["gitnexus", "repowise"]
+  security_auditor: ["gitnexus", "repowise", "perplexity", "sentinel", "skylos"],
+  qa_engineer: ["gitnexus", "repowise"],
+  data_engineer: ["gitnexus", "repowise", "postgres"],
+  general: ["gitnexus", "repowise", "context7"]
 };
 ```
 

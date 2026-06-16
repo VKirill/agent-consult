@@ -182,12 +182,15 @@ async function copyFileSafe(src: string, dest: string, mode?: number): Promise<v
 }
 
 const ROLE_MCP_MAPPING: Record<string, string[]> = {
-  programmer: ["gitnexus", "repowise"],
-  web_architect: ["gitnexus", "repowise", "vue-docs", "shadcn", "nuxt-ui"],
+  programmer: ["gitnexus", "repowise", "context7"],
+  web_architect: ["gitnexus", "repowise", "vue-docs", "shadcn", "nuxt-ui", "context7"],
   system_architect: ["gitnexus", "repowise", "postgres"],
-  app_architect: ["gitnexus", "repowise", "postgres"],
+  app_architect: ["gitnexus", "repowise", "postgres", "context7"],
   marketer: ["perplexity"],
-  general: ["gitnexus", "repowise"]
+  security_auditor: ["gitnexus", "repowise", "perplexity", "sentinel", "skylos"],
+  qa_engineer: ["gitnexus", "repowise"],
+  data_engineer: ["gitnexus", "repowise", "postgres"],
+  general: ["gitnexus", "repowise", "context7"]
 };
 
 export async function setupAgentMcpConfig(agentName: string, role: string): Promise<void> {
@@ -249,9 +252,17 @@ export async function setupAgentMcpConfig(agentName: string, role: string): Prom
       agentJson.permissions.allow.push(`mcp/${serverName}/*`);
     }
 
-    // 5. Добавляем разрешения на чтение файлов рабочей директории
+    // 5. Добавляем разрешения на чтение файлов рабочей директории и папок навыков
     agentJson.permissions.allow.push(`read_file:${WORKSPACE_ROOT}`);
     agentJson.permissions.allow.push(`read_file:${WORKSPACE_ROOT}/*`);
+
+    const globalSkillsDir = path.join(SERVER_ROOT, "skills");
+    agentJson.permissions.allow.push(`read_file:${globalSkillsDir}`);
+    agentJson.permissions.allow.push(`read_file:${globalSkillsDir}/*`);
+
+    const agentSkillsDir = path.join(agentHome, "skills");
+    agentJson.permissions.allow.push(`read_file:${agentSkillsDir}`);
+    agentJson.permissions.allow.push(`read_file:${agentSkillsDir}/*`);
 
     // 6. Записываем файл .claude.json в домашнюю папку агента
     await fs.mkdir(path.dirname(targetClaudeJson), { recursive: true, mode: 0o700 });

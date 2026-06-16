@@ -1,7 +1,7 @@
 {
   "name": "agent-consult-mcp-server",
   "version": "1.0.0",
-  "description": "MCP server for multi-agent consultations",
+  "description": "MCP server for multi-agent AI consultations (Codex, Claude, Anti-Gravity, Mimo) with consensus synthesis",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
@@ -9,6 +9,30 @@
     "start": "node dist/index.js",
     "dev": "node --experimental-strip-types src/index.ts"
   },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "mcp-server",
+    "ai-agents",
+    "multi-agent",
+    "claude-desktop",
+    "codex-cli",
+    "openrouter",
+    "minimax-m3",
+    "synthesis",
+    "typescript",
+    "nodejs"
+  ],
+  "author": "Kirill Vechkasov (https://github.com/VKirill)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VKirill/agent-consult.git"
+  },
+  "bugs": {
+    "url": "https://github.com/VKirill/agent-consult/issues"
+  },
+  "homepage": "https://github.com/VKirill/agent-consult#readme",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4"
   },

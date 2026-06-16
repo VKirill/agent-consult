@@ -41,7 +41,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "ask_consultant",
         title: "Request agent consultation",
         description: 
-          "Sends a complex technical or business question to a group of 5 specialized AI agents (Codex, Claude, agy, Gemini, Mimo) " +
+          "Sends a complex technical or business question to a group of 4 specialized AI agents (Codex, Claude, agy, Mimo) " +
           "simultaneously. Each agent responds according to their selected role (e.g. programmer, marketer, architect). " +
           "After gathering individual opinions, the Minimax-M3 synthesis model is launched to consolidate the responses, " +
           "identify unique ideas, resolve contradictions, and compile a single structured Markdown report.",
@@ -62,7 +62,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             role: {
               type: "string",
-              enum: ["marketer", "programmer", "system_architect", "web_architect", "app_architect", "general"],
+              enum: ["marketer", "programmer", "system_architect", "web_architect", "app_architect", "security_auditor", "qa_engineer", "data_engineer", "general"],
               default: "general",
               description: 
                 "Specialist profile determining the context and system instructions for the consultation. " +
@@ -71,6 +71,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 "system_architect — servers/networking/DevOps/CI-CD; " +
                 "web_architect — UX/UI/Core Web Vitals/technical SEO; " +
                 "app_architect — application architecture/microservices/databases; " +
+                "security_auditor — security audit/vulnerabilities/OWASP/secrets; " +
+                "qa_engineer — test plans/edge cases/Vitest/Playwright; " +
+                "data_engineer — database schemas/ETL/SQL optimization/OLAP; " +
                 "general — general consultant.",
             },
             custom_role_prompt: {
@@ -85,8 +88,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 type: "string"
               },
               description: 
-                "List of specific agents to query (e.g. ['codex', 'gemini']). " +
-                "Defaults to all 5 available agents: ['codex', 'claude', 'agy', 'gemini', 'mimo'].",
+                "List of specific agents to query (e.g. ['codex', 'claude']). " +
+                "Defaults to all 4 available agents: ['codex', 'claude', 'agy', 'mimo'].",
             },
             request_raw_responses: {
               type: "boolean",
@@ -154,9 +157,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
    - **Фокус**: Распределенные системы, микросервисы, DDD, проектирование баз данных (репликация/шардирование по Клеппману), интеграции.
    - **Рекомендуется для**: Выбора стека, проектирования структуры БД, планирования отказоустойчивой архитектуры.
 
-6. **general** (Универсальный консультант):
-   - **Фокус**: Комплексный анализ вопросов, сравнение вариантов решений, пошаговое планирование, маршрутизация.
-   - **Рекомендуется для**: Разноплановых задач, не попадающих под остальные категории.
+ 6. **security_auditor** (Аудитор безопасности):
+    - **Фокус**: Уязвимости (OWASP Top 10), инъекции, утечки секретов и приватных данных, зависимости, права доступа.
+    - **Рекомендуется для**: Безопасного аудита кода и инфраструктуры, поиска утечек API-ключей, threat modeling.
+
+ 7. **qa_engineer** (Инженер по качеству):
+    - **Фокус**: Сценарии тестирования (граничные условия, edge cases), тест-планы, фреймворки автотестов (Vitest, Playwright).
+    - **Рекомендуется для**: Разработки стратегии автоматизации тестирования, верификации стабильности кода.
+
+ 8. **data_engineer** (Инженер данных):
+    - **Фокус**: Проектирование схем баз данных (OLAP/OLTP), ETL пайплайны, оптимизация SQL-запросов (EXPLAIN ANALYZE), партиционирование.
+    - **Рекомендуется для**: Выбора хранилищ, интеграции данных, рефакторинга миграций и оптимизации производительности БД.
+
+ 9. **general** (Универсальный консультант):
+    - **Фокус**: Комплексный анализ вопросов, сравнение вариантов решений, пошаговое планирование, маршрутизация.
+    - **Рекомендуется для**: Разноплановых задач, не попадающих под остальные категории.
 `;
     return {
       content: [{ type: "text", text: rolesInfo.trim() }]
@@ -201,8 +216,20 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const question = args?.question;
     const role = (args?.role as string) || "general";
     const customRolePrompt = args?.custom_role_prompt as string | undefined;
-    const skipSynthesis = !!(args?.request_raw_responses || args?.skip_synthesis);
-    const targetAgentsList = (args?.agents as string[]) || ["codex", "claude", "agy", "gemini", "mimo"];
+    
+    let targetAgentsList = args?.agents as string[] | undefined;
+    let autoSkipSynthesis = !!(args?.request_raw_responses || args?.skip_synthesis);
+
+    if (!targetAgentsList) {
+      if (role === "security_auditor") {
+        targetAgentsList = ["codex"];
+        autoSkipSynthesis = true;
+      } else {
+        targetAgentsList = ["codex", "claude", "agy", "mimo"];
+      }
+    } else if (targetAgentsList.length === 1) {
+      autoSkipSynthesis = true;
+    }
 
     if (typeof question !== "string" || question.trim() === "") {
       return {
@@ -213,7 +240,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     const config = await loadConfig();
 
-    const needsOpenRouter = !skipSynthesis || targetAgentsList.some(agentName => {
+    const needsOpenRouter = !autoSkipSynthesis || targetAgentsList.some(agentName => {
       const localAgents = ["codex", "claude", "agy", "gemini", "mimo"];
       return !localAgents.includes(agentName);
     });
@@ -233,7 +260,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       role,
       customRolePrompt,
       agentsList: targetAgentsList,
-      skipSynthesis,
+      skipSynthesis: autoSkipSynthesis,
       config
     });
 
