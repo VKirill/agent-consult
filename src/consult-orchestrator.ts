@@ -1,4 +1,4 @@
-import { AppConfig, AgentConfig, loadConfig, loadRolePrompt, loadPersonalityPrompt, WORKSPACE_ROOT, SERVER_ROOT, AGENT_HOMES_ROOT, setupAgentMcpConfig } from "./config.js";
+import { AppConfig, AgentConfig, loadConfig, loadRolePrompt, loadPersonalityPrompt, WORKSPACE_ROOT, SERVER_ROOT, AGENT_HOMES_ROOT, setupAgentMcpConfig, ensureAgentHomeDirs } from "./config.js";
 import { queryOpenRouter, AgentResponse } from "./openrouter-client.js";
 import fs from "fs/promises";
 import { existsSync } from "fs";
@@ -662,6 +662,9 @@ export async function runConsultation(options: {
   const { question, role, customRolePrompt, agentsList, skipSynthesis, config } = options;
   const apiKey = config.openrouter_api_key;
   const startTime = Date.now();
+
+  // Синхронизируем директории и актуальные сессионные токены агентов перед каждым запуском консилиума
+  await ensureAgentHomeDirs();
 
   // 1. Определение промпта роли
   let rolePrompt = "";
