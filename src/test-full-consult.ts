@@ -14,7 +14,7 @@ async function testFullConsult() {
 
   const question = "Каковы 3 главных правила при проектировании API для мобильных приложений?";
   const role = "app_architect";
-  const testAgents = ["codex", "claude", "agy", "gemini", "mimo"];
+  const testAgents = ["codex", "claude", "agy", "gemini", "mimo", "grok"];
 
   console.log(`Вопрос: "${question}"`);
   console.log(`Роль: ${role}`);
