@@ -86,16 +86,35 @@ async function queryLocalCLI(
   question: string,
   timeoutMs: number
 ): Promise<string> {
+  const userHome = os.homedir();
+  let tempPromptFile = "";
+
+  if (agentName === "grok") {
+    const tempDir = os.tmpdir();
+    const rand = Math.random().toString(36).substring(7);
+    tempPromptFile = path.join(tempDir, `grok_prompt_${rand}.txt`);
+    const fullPrompt = `${systemPrompt}\n\nВОПРОС:\n${question}`;
+    await fs.writeFile(tempPromptFile, fullPrompt, "utf-8");
+  }
+
   return new Promise((resolve, reject) => {
     let binPath = "";
     let args: string[] = [];
     const model = agentConfig.model;
 
-    const cleanModel = model.replace(/^(openai|anthropic|google|xiaomi)\//, "");
-
-    const userHome = os.homedir();
+    const cleanModel = model.replace(/^(openai|anthropic|google|xiaomi|xai)\//, "");
     let defaultBinPath = "";
     let globalBinName = "";
+
+    const cleanupTempFile = async () => {
+      if (tempPromptFile) {
+        try {
+          await fs.unlink(tempPromptFile);
+        } catch (e) {
+          // Игнорируем
+        }
+      }
+    };
 
     switch (agentName) {
       case "codex":
@@ -128,8 +147,24 @@ async function queryLocalCLI(
         globalBinName = "mimo";
         args = ["run", "--pure"];
         break;
+      case "grok":
+        defaultBinPath = path.join(userHome, ".local", "bin", "grok");
+        globalBinName = "grok";
+        args = [
+          "--no-memory",
+          "--always-approve",
+          "--permission-mode", "auto",
+          "--prompt-file", tempPromptFile
+        ];
+        if (cleanModel && cleanModel !== "grok") {
+          args.push("--model", cleanModel);
+        }
+        break;
       default:
-        return reject(new Error(`Неизвестный локальный агент: ${agentName}`));
+        cleanupTempFile().then(() => {
+          reject(new Error(`Неизвестный локальный агент: ${agentName}`));
+        });
+        return;
     }
 
     binPath = existsSync(defaultBinPath) ? defaultBinPath : globalBinName;
@@ -212,7 +247,9 @@ async function queryLocalCLI(
           isSettled = true;
           cleanupPid();
           killProcessGroup("SIGKILL");
-          reject(new Error(`Превышен таймаут ожидания ответа от локального CLI ${agentName} (прошло ${Math.round(elapsed / 1000)} сек, лимит составил ${Math.round(currentTimeoutMs / 1000)} сек)`));
+          cleanupTempFile().then(() => {
+            reject(new Error(`Превышен таймаут ожидания ответа от локального CLI ${agentName} (прошло ${Math.round(elapsed / 1000)} сек, лимит составил ${Math.round(currentTimeoutMs / 1000)} сек)`));
+          });
         }, updatedRemaining);
 
         if (now - lastLogTime > 15000) {
@@ -289,12 +326,14 @@ async function queryLocalCLI(
       if (isSettled) return;
       isSettled = true;
       clearTimeout(timer);
-      if (code !== 0) {
-        reject(new Error(`Локальный CLI ${agentName} завершился с кодом ${code}.\nStderr: ${stderr}`));
-      } else {
-        const result = agentName === "claude" && finalResult ? finalResult : stdout;
-        resolve(cleanCLIOutput(result));
-      }
+      cleanupTempFile().then(() => {
+        if (code !== 0) {
+          reject(new Error(`Локальный CLI ${agentName} завершился с кодом ${code}.\nStderr: ${stderr}`));
+        } else {
+          const result = agentName === "claude" && finalResult ? finalResult : stdout;
+          resolve(cleanCLIOutput(result));
+        }
+      });
     });
 
     child.on("error", (err) => {
@@ -303,12 +342,16 @@ async function queryLocalCLI(
       isSettled = true;
       clearTimeout(timer);
       killProcessGroup();
-      reject(err);
+      cleanupTempFile().then(() => {
+        reject(err);
+      });
     });
 
     const fullPrompt = `${systemPrompt}\n\nВОПРОС:\n${question}`;
-    child.stdin.write(fullPrompt);
-    child.stdin.end();
+    if (agentName !== "grok") {
+      child.stdin.write(fullPrompt);
+      child.stdin.end();
+    }
   });
 }
 
@@ -409,7 +452,7 @@ export async function runAgent(
   try {
     process.stderr.write(`[Consult Orchestrator] Запуск агента ${agentName} (модель: ${agentConfig.model}, характер: ${personality ? personality.name : "Обычный"})...\n`);
     
-    const localAgents = ["codex", "claude", "agy", "gemini", "mimo"];
+    const localAgents = ["codex", "claude", "agy", "gemini", "mimo", "grok"];
     let content = "";
 
     if (localAgents.includes(agentName)) {
@@ -483,6 +526,10 @@ export function isLocalAgentAvailable(agentName: string): boolean {
       defaultBinPath = path.join(userHome, ".mimocode", "bin", "mimo");
       globalBinName = "mimo";
       break;
+    case "grok":
+      defaultBinPath = path.join(userHome, ".local", "bin", "grok");
+      globalBinName = "grok";
+      break;
     default:
       return false;
   }
@@ -554,7 +601,7 @@ export async function runConsultation(options: {
     process.stderr.write(`[Consult Orchestrator] Ожидаем ответы от агентов: ${Array.from(activeAgents).map(a => a.toUpperCase()).join(", ")} (прошло ${elapsedSec} сек)\n`);
   }, 10000);
 
-  const localAgents = ["codex", "claude", "agy", "gemini", "mimo"];
+  const localAgents = ["codex", "claude", "agy", "gemini", "mimo", "grok"];
 
   const agentPromises = agentsList.map(async (agentName, index) => {
     let agentConfig = config.agents[agentName];

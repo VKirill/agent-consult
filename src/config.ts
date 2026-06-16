@@ -37,6 +37,7 @@ export interface AppConfig {
     agy: AgentConfig;
     gemini: AgentConfig;
     mimo: AgentConfig;
+    grok: AgentConfig;
     [key: string]: AgentConfig;
   };
   synthesis: AgentConfig;
@@ -90,6 +91,11 @@ export async function loadConfig(): Promise<AppConfig> {
         model: fileConfig.agents?.mimo?.model ?? "xiaomi/mimo-v2.5-pro",
         system_prefix: fileConfig.agents?.mimo?.system_prefix,
         reasoning: fileConfig.agents?.mimo?.reasoning ?? { enable: false }
+      },
+      grok: {
+        model: fileConfig.agents?.grok?.model ?? "xai/grok-composer-2.5-fast",
+        system_prefix: fileConfig.agents?.grok?.system_prefix ?? "Ты — агент Grok. Твоя сила в поиске деталей, анализе реального времени, сарказме и прямолинейных практических советах.",
+        reasoning: fileConfig.agents?.grok?.reasoning ?? { enable: false }
       }
     },
     synthesis: {
@@ -193,8 +199,87 @@ const ROLE_MCP_MAPPING: Record<string, string[]> = {
   general: ["gitnexus", "repowise", "context7"]
 };
 
+async function setupGrokConfig(agentHome: string, role: string): Promise<void> {
+  const GLOBAL_HOME = os.homedir();
+  const globalClaudeJsonPath = path.join(GLOBAL_HOME, ".claude.json");
+  const targetGrokConfig = path.join(agentHome, ".grok", "config.toml");
+
+  try {
+    let globalJson: any = {};
+    try {
+      const globalData = await fs.readFile(globalClaudeJsonPath, "utf-8");
+      globalJson = JSON.parse(globalData);
+    } catch (err) {
+      // Игнорируем
+    }
+
+    let tomlContent = `[cli]\ninstaller = "internal"\n\n[models]\ndefault = "grok-composer-2.5-fast"\n\n`;
+
+    const allowedServers = ROLE_MCP_MAPPING[role] || ROLE_MCP_MAPPING["general"];
+
+    for (const serverName of allowedServers) {
+      let serverConfig = globalJson.mcpServers?.[serverName];
+      if (!serverConfig) {
+        if (serverName === "repowise") {
+          serverConfig = {
+            command: path.join(GLOBAL_HOME, ".local", "bin", "repowise-mcp"),
+            args: ["mcp"]
+          };
+        } else if (serverName === "gitnexus") {
+          serverConfig = {
+            url: process.env.GITNEXUS_URL || "http://127.0.0.1:9401/api/mcp"
+          };
+        }
+      }
+
+      if (serverConfig) {
+        tomlContent += `[mcp_servers.${serverName}]\n`;
+        if (serverConfig.command) {
+          tomlContent += `command = "${serverConfig.command}"\n`;
+          if (serverConfig.args) {
+            tomlContent += `args = [${serverConfig.args.map((a: string) => `"${a}"`).join(", ")}]\n`;
+          }
+        } else if (serverConfig.url) {
+          tomlContent += `url = "${serverConfig.url}"\n`;
+        }
+        tomlContent += `enabled = true\n\n`;
+
+        if (serverConfig.headers && Object.keys(serverConfig.headers).length > 0) {
+          tomlContent += `[mcp_servers.${serverName}.headers]\n`;
+          for (const [hk, hv] of Object.entries(serverConfig.headers)) {
+            tomlContent += `${hk} = "${hv}"\n`;
+          }
+          tomlContent += `\n`;
+        }
+
+        if (serverConfig.env && Object.keys(serverConfig.env).length > 0) {
+          tomlContent += `[mcp_servers.${serverName}.env]\n`;
+          for (const [ek, ev] of Object.entries(serverConfig.env)) {
+            tomlContent += `${ek} = "${ev}"\n`;
+          }
+          tomlContent += `\n`;
+        }
+      }
+    }
+
+    await fs.mkdir(path.dirname(targetGrokConfig), { recursive: true, mode: 0o700 });
+    await fs.writeFile(targetGrokConfig, tomlContent, "utf-8");
+    try {
+      await fs.chmod(targetGrokConfig, 0o600);
+    } catch (e) {}
+  } catch (err: any) {
+    process.stderr.write(`Ошибка настройки config.toml для grok: ${err.message}\n`);
+  }
+}
+
 export async function setupAgentMcpConfig(agentName: string, role: string): Promise<void> {
   const agentHome = path.join(AGENT_HOMES_ROOT, agentName);
+  
+  if (agentName === "grok") {
+    await setupGrokConfig(agentHome, role);
+    return;
+  }
+  
   const targetClaudeJson = path.join(agentHome, ".claude.json");
   const GLOBAL_HOME = os.homedir();
   const globalClaudeJsonPath = path.join(GLOBAL_HOME, ".claude.json");
@@ -291,7 +376,7 @@ export async function ensureAgentHomeDirs(): Promise<void> {
     process.stderr.write(`Ошибка при создании корневой временной папки агентов: ${err.message}\n`);
   }
 
-  const agents = ["codex", "claude", "agy", "gemini", "mimo", "synthesis"];
+  const agents = ["codex", "claude", "agy", "gemini", "mimo", "grok", "synthesis"];
   for (const agent of agents) {
     const agentHomePath = path.join(AGENT_HOMES_ROOT, agent);
     const agentSkillsPath = path.join(agentHomePath, "skills");
@@ -436,5 +521,24 @@ export async function ensureAgentHomeDirs(): Promise<void> {
     } catch (e) {}
   } catch (err: any) {
     process.stderr.write(`Ошибка генерации mimocode.json для Mimo: ${err.message}\n`);
+  }
+
+  // 6. Для grok (только авторизация + чистый config.toml)
+  const copyGrokAuth = async (targetHome: string) => {
+    await copyFileSafe(path.join(GLOBAL_HOME, ".grok", "auth.json"), path.join(targetHome, ".grok", "auth.json"), 0o600);
+    await copyFileSafe(path.join(GLOBAL_HOME, ".grok", "agent_id"), path.join(targetHome, ".grok", "agent_id"), 0o600);
+  };
+  const grokHome = path.join(AGENT_HOMES_ROOT, "grok");
+  await copyGrokAuth(grokHome);
+  const grokConfigPath = path.join(grokHome, ".grok", "config.toml");
+  const grokConfigContent = `[cli]\ninstaller = "internal"\n\n[models]\ndefault = "grok-composer-2.5-fast"\n`;
+  try {
+    await fs.mkdir(path.dirname(grokConfigPath), { recursive: true, mode: 0o700 });
+    await fs.writeFile(grokConfigPath, grokConfigContent, "utf-8");
+    try {
+      await fs.chmod(grokConfigPath, 0o600);
+    } catch (e) {}
+  } catch (err: any) {
+    process.stderr.write(`Ошибка генерации config.toml для Grok: ${err.message}\n`);
   }
 }

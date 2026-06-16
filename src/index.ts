@@ -22,7 +22,7 @@ const server = new Server(
       },
     },
     instructions:
-      "This MCP server provides access to the collective mind of 5 agents (Codex, Claude, Anti-Gravity (agy), Gemini, Mimo). " +
+      "This MCP server provides access to the collective mind of 6 agents (Codex, Claude, Anti-Gravity (agy), Gemini, Mimo, Grok). " +
       "When calling the consultation (ask_consultant), the parent agent MUST act as a qualified Senior/Tech Lead: " +
       "translate the end-user's informal request into a structured technical brief in Russian, " +
       "pre-gathering the project context (reading relevant files, schemas, or directory structures via your own tools first) " +
@@ -41,7 +41,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "ask_consultant",
         title: "Request agent consultation",
         description: 
-          "Sends a complex technical or business question to a group of 4 specialized AI agents (Codex, Claude, agy, Mimo) " +
+          "Sends a complex technical or business question to a group of 5 specialized AI agents (Codex, Claude, agy, Mimo, Grok) " +
           "simultaneously. Each agent responds according to their selected role (e.g. programmer, marketer, architect). " +
           "After gathering individual opinions, the Minimax-M3 synthesis model is launched to consolidate the responses, " +
           "identify unique ideas, resolve contradictions, and compile a single structured Markdown report.",
@@ -89,7 +89,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               },
               description: 
                 "List of specific agents to query (e.g. ['codex', 'claude']). " +
-                "Defaults to all 4 available agents: ['codex', 'claude', 'agy', 'mimo'].",
+                "Defaults to all 5 available agents: ['codex', 'claude', 'agy', 'mimo', 'grok'].",
             },
             request_raw_responses: {
               type: "boolean",
@@ -225,7 +225,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         targetAgentsList = ["codex"];
         autoSkipSynthesis = true;
       } else {
-        targetAgentsList = ["codex", "claude", "agy", "mimo"];
+        targetAgentsList = ["codex", "claude", "agy", "mimo", "grok"];
       }
     } else if (targetAgentsList.length === 1) {
       autoSkipSynthesis = true;
@@ -241,7 +241,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const config = await loadConfig();
 
     const needsOpenRouter = !autoSkipSynthesis || targetAgentsList.some(agentName => {
-      const localAgents = ["codex", "claude", "agy", "gemini", "mimo"];
+      const localAgents = ["codex", "claude", "agy", "gemini", "mimo", "grok"];
       return !localAgents.includes(agentName);
     });
 

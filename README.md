@@ -4,7 +4,7 @@
 
 # Agent Consult MCP Server
 
-**A production-grade Model Context Protocol (MCP) server for running multi-agent AI consultations (Codex, Claude, Anti-Gravity, Mimo) with professional synthesis powered by Minimax-M3 on OpenRouter.**
+**A production-grade Model Context Protocol (MCP) server for running multi-agent AI consultations (Codex, Claude, Anti-Gravity, Mimo, Grok) with professional synthesis powered by Minimax-M3 on OpenRouter.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-≥20-43853d.svg)](https://nodejs.org)
@@ -19,7 +19,7 @@
 
 ## 📖 Overview & SEO Description
 
-**Agent Consult MCP Server** is a robust multi-agent orchestration and consensus-building platform built on top of the **Model Context Protocol (MCP)**. It coordinates a panel of virtual experts (**Codex** for logic and code, **Claude** for analysis and writing style, **Anti-Gravity** for creative thinking, and **Mimo** for structural criticism) to deliver a unified, highly optimized professional response. The final synthesis is performed by the advanced **Minimax-M3** model, ensuring technical accuracy, conflict resolution, and cohesive formatting.
+**Agent Consult MCP Server** is a robust multi-agent orchestration and consensus-building platform built on top of the **Model Context Protocol (MCP)**. It coordinates a panel of virtual experts (**Codex** for logic and code, **Claude** for analysis and writing style, **Anti-Gravity** for creative thinking, **Mimo** for structural criticism, and **Grok** for detailed real-time execution analysis) to deliver a unified, highly optimized professional response. The final synthesis is performed by the advanced **Minimax-M3** model, ensuring technical accuracy, conflict resolution, and cohesive formatting.
 
 Designed for developers, system architects, and marketing strategists, it brings enterprise-grade AI consensus directly to tools like **Claude Desktop**, **Codex CLI**, and other MCP-compatible clients.
 
@@ -31,7 +31,7 @@ Designed for developers, system architects, and marketing strategists, it brings
 flowchart TD
     Client[Calling Agent / MCP Client] -->|ask_consultant| MCPServer[Agent Consult MCP Server]
     
-    MCPServer -->|Standard Mode: 4 agents| Agents
+    MCPServer -->|Standard Mode: 5 agents| Agents
     MCPServer -->|Security Mode: 1 agent| CodexHigh[Codex \nopenai/gpt-5.5 + High Reasoning]
     
     subgraph Agents [Consultation Agent Pool]
@@ -39,6 +39,7 @@ flowchart TD
         Claude[Claude \nAnalysis & Style]
         AGY[Anti-Gravity \nCreative & Out-of-box]
         Mimo[Mimo \nCritique & Structure]
+        Grok[Grok \nDetail Search & Action]
     end
     
     Agents -->|Collect Answers| MCPServer
@@ -85,7 +86,7 @@ Run a multi-agent consultation to answer a complex prompt or task.
   - `question` (string, **required**): Your question or technical task description.
   - `role` (enum, optional, default: `general`): Specialist profile. Available: `marketer`, `programmer`, `system_architect`, `web_architect`, `app_architect`, `security_auditor`, `qa_engineer`, `data_engineer`, `general`.
   - `custom_role_prompt` (string, optional): Overrides the default system prompt for the role.
-  - `agents` (string[], optional): Sub-list of agents to query (e.g., `["codex", "claude"]`). Defaults to `["codex", "claude", "agy", "mimo"]`.
+  - `agents` (string[], optional): Sub-list of agents to query (e.g., `["codex", "claude"]`). Defaults to `["codex", "claude", "agy", "mimo", "grok"]`.
   - `skip_synthesis` (boolean, optional, default: `false`): Skips the consolidation phase and returns raw agent responses.
 
 ### 2. `check_agents_status`
@@ -109,6 +110,14 @@ The server configuration resides in [config.json](file:///home/ubuntu/mcp_server
     "codex": {
       "model": "openai/gpt-5.5",
       "system_prefix": "You are Codex. Your strength is in algorithmic precision and code analysis...",
+      "reasoning": {
+        "enable": false,
+        "reasoning_effort": "medium"
+      }
+    },
+    "grok": {
+      "model": "xai/grok-composer-2.5-fast",
+      "system_prefix": "You are Grok. Your strength is in search details and practical advice...",
       "reasoning": {
         "enable": false,
         "reasoning_effort": "medium"
