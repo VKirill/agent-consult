@@ -281,13 +281,14 @@ async function queryLocalCLI(
       }
     };
 
-    let stdout = "";
-    let stderr = "";
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
     let isSettled = false;
     const startTime = Date.now();
     let currentTimeoutMs = timeoutMs;
     let lastLogTime = 0;
     let timer: NodeJS.Timeout;
+    let killEscalationTimer: NodeJS.Timeout | undefined;
 
     const killProcessGroup = (signal: "SIGTERM" | "SIGKILL" = "SIGTERM") => {
       if (child.pid) {
@@ -301,6 +302,11 @@ async function queryLocalCLI(
           // Игнорируем
         }
       }
+    };
+
+    const clearAllTimers = () => {
+      if (timer) clearTimeout(timer);
+      if (killEscalationTimer) clearTimeout(killEscalationTimer);
     };
 
     const resetOrExtendTimeout = (reason: string) => {
@@ -318,12 +324,15 @@ async function queryLocalCLI(
         }
         const updatedRemaining = currentTimeoutMs - elapsed;
 
-        clearTimeout(timer);
+        clearAllTimers();
         timer = setTimeout(() => {
           if (isSettled) return;
           isSettled = true;
           cleanupPid();
-          killProcessGroup("SIGKILL");
+          killProcessGroup("SIGTERM");
+          killEscalationTimer = setTimeout(() => {
+            killProcessGroup("SIGKILL");
+          }, 3000);
           cleanupTempFile().then(() => {
             reject(new Error(`Превышен таймаут ожидания ответа от локального CLI ${agentName} (прошло ${Math.round(elapsed / 1000)} сек, лимит составил ${Math.round(currentTimeoutMs / 1000)} сек)`));
           });
@@ -340,9 +349,14 @@ async function queryLocalCLI(
       if (isSettled) return;
       isSettled = true;
       cleanupPid();
+      clearAllTimers();
       killProcessGroup("SIGTERM");
-      setTimeout(() => killProcessGroup("SIGKILL"), 3000);
-      reject(new Error(`Превышен таймаут ожидания ответа от локального CLI ${agentName} (${timeoutMs} мс)`));
+      killEscalationTimer = setTimeout(() => {
+        killProcessGroup("SIGKILL");
+      }, 3000);
+      cleanupTempFile().then(() => {
+        reject(new Error(`Превышен таймаут ожидания ответа от локального CLI ${agentName} (${timeoutMs} мс)`));
+      });
     }, timeoutMs);
 
     let stdoutBuffer = "";
@@ -373,16 +387,16 @@ async function queryLocalCLI(
           }
         }
       } else {
-        stdout += chunk.toString();
+        stdoutChunks.push(chunk);
       }
     });
 
     let stderrLineBuffer = "";
     child.stderr.on("data", (chunk: Buffer) => {
       resetOrExtendTimeout("stderr");
-      const chunkStr = chunk.toString();
-      stderr += chunkStr;
+      stderrChunks.push(chunk);
       
+      const chunkStr = chunk.toString();
       stderrLineBuffer += chunkStr;
       const lines = stderrLineBuffer.split("\n");
       stderrLineBuffer = lines.pop() || "";
@@ -402,12 +416,22 @@ async function queryLocalCLI(
       cleanupPid();
       if (isSettled) return;
       isSettled = true;
-      clearTimeout(timer);
+      clearAllTimers();
       cleanupTempFile().then(async () => {
+        // Выводим остаток stderrLineBuffer, если он остался
+        if (stderrLineBuffer.trim()) {
+          const cleanLine = stripAnsi(stderrLineBuffer).trim();
+          if (cleanLine && !cleanLine.includes("ExperimentalWarning:") && !cleanLine.includes("DeprecationWarning:")) {
+            process.stderr.write(`[Агент: ${agentName.toUpperCase()}] ${cleanLine}\n`);
+          }
+        }
+
+        const finalStderr = Buffer.concat(stderrChunks).toString();
+
         if (code !== 0) {
-          reject(new Error(`Локальный CLI ${agentName} завершился с кодом ${code}.\nStderr: ${stderr}`));
+          reject(new Error(`Локальный CLI ${agentName} завершился с кодом ${code}.\nStderr: ${finalStderr}`));
         } else {
-          let result = agentName === "claude" && finalResult ? finalResult : stdout;
+          let result = agentName === "claude" && finalResult ? finalResult : Buffer.concat(stdoutChunks).toString();
           result = cleanCLIOutput(result);
 
           try {
@@ -428,7 +452,7 @@ async function queryLocalCLI(
       cleanupPid();
       if (isSettled) return;
       isSettled = true;
-      clearTimeout(timer);
+      clearAllTimers();
       killProcessGroup();
       cleanupTempFile().then(() => {
         reject(err);
@@ -437,6 +461,9 @@ async function queryLocalCLI(
 
     const fullPrompt = `${systemPrompt}\n\nВОПРОС:\n${question}`;
     if (agentName !== "grok") {
+      child.stdin.on("error", (err) => {
+        // Игнорируем EPIPE ошибку записи в закрытый stdin
+      });
       child.stdin.write(fullPrompt);
       child.stdin.end();
     }
@@ -792,8 +819,12 @@ export async function runConsultation(options: {
     }
   });
 
-  const agentResults = await Promise.all(agentPromises);
-  clearInterval(progressTimer);
+  let agentResults: AgentResponse[] = [];
+  try {
+    agentResults = await Promise.all(agentPromises);
+  } finally {
+    clearInterval(progressTimer);
+  }
   const successfulResponses = agentResults.filter(r => r.success && r.content);
 
   // Если никто не ответил, возвращаем ошибку
