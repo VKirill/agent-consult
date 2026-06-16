@@ -66,10 +66,23 @@ function cleanCLIOutput(output: string): string {
   let lines = output.split("\n");
   lines = lines.filter(line => {
     const trimmed = line.trim();
-    if (trimmed.toLowerCase().startsWith("warning:") || trimmed.toLowerCase().startsWith("warn:")) return false;
+    const lower = trimmed.toLowerCase();
+    
+    // Фильтруем предупреждения и служебные логи
+    if (lower.startsWith("warning:") || lower.startsWith("warn:")) return false;
     if (trimmed.includes("ExperimentalWarning:") || trimmed.includes("DeprecationWarning:")) return false;
     if (trimmed.startsWith("[Codex]") || trimmed.startsWith("[info]") || trimmed.startsWith("[debug]")) return false;
     if (trimmed.startsWith(">")) return false;
+    
+    // Фильтруем промежуточные логи мыслей Antigravity CLI (agy/gemini)
+    if (lower.startsWith("i will ") || 
+        lower.startsWith("i am ") || 
+        lower.startsWith("i have ") || 
+        lower.startsWith("reading ") || 
+        lower.startsWith("searching ") || 
+        lower.startsWith("analyzing ") || 
+        lower.startsWith("inspecting ")) return false;
+        
     return true;
   });
   return lines.join("\n").trim();
@@ -77,6 +90,70 @@ function cleanCLIOutput(output: string): string {
 
 function stripAnsi(str: string): string {
   return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
+}
+
+async function detectAndReadSessionArtifacts(agentName: string, startTime: number): Promise<string> {
+  // Артефакты создаются только для агентов, использующих Antigravity CLI (agy / gemini)
+  if (agentName !== "agy" && agentName !== "gemini") {
+    return "";
+  }
+
+  const brainDir = path.join(AGENT_HOMES_ROOT, agentName, ".gemini", "antigravity-cli", "brain");
+  try {
+    const stat = await fs.stat(brainDir);
+    if (!stat.isDirectory()) return "";
+  } catch (e) {
+    return ""; // Директория не существует
+  }
+
+  try {
+    const dirs = await fs.readdir(brainDir);
+    let newestDir = "";
+    let newestTime = 0;
+
+    for (const dir of dirs) {
+      const fullPath = path.join(brainDir, dir);
+      try {
+        const dirStat = await fs.stat(fullPath);
+        if (dirStat.isDirectory() && dirStat.mtimeMs > newestTime) {
+          newestTime = dirStat.mtimeMs;
+          newestDir = fullPath;
+        }
+      } catch (e) {
+        // Пропускаем ошибки доступа к файлам
+      }
+    }
+
+    // Проверяем, что папка была изменена во время или после старта сессии (с запасом 5 секунд)
+    if (newestDir && newestTime >= startTime - 5000) {
+      const files = await fs.readdir(newestDir);
+      let artifactContent = "";
+
+      for (const file of files) {
+        // Пропускаем скрытые файлы, папку .system_generated и метаданные
+        if (file.startsWith(".") || file === ".system_generated" || file.endsWith(".metadata.json")) {
+          continue;
+        }
+
+        const filePath = path.join(newestDir, file);
+        try {
+          const fileStat = await fs.stat(filePath);
+          if (fileStat.isFile()) {
+            const content = await fs.readFile(filePath, "utf-8");
+            artifactContent += `\n\n### 📄 Сгенерированный артефакт: ${file}\n\n${content}\n`;
+          }
+        } catch (e) {
+          // Пропускаем ошибки чтения файлов
+        }
+      }
+
+      return artifactContent;
+    }
+  } catch (err) {
+    process.stderr.write(`[Orchestrator] Ошибка при поиске артефактов сессии: ${err instanceof Error ? err.message : String(err)}\n`);
+  }
+
+  return "";
 }
 
 async function queryLocalCLI(
@@ -130,7 +207,7 @@ async function queryLocalCLI(
         defaultBinPath = path.join(userHome, ".local", "bin", "claude");
         globalBinName = "claude";
         const modelArg = (cleanModel === "sonnet" || cleanModel === "opus" || cleanModel === "haiku") ? cleanModel : "sonnet";
-        args = ["-p", "--model", modelArg, "--output-format", "stream-json", "--verbose"];
+        args = ["-p", "--model", modelArg, "--output-format", "stream-json", "--verbose", "--permission-mode", "auto"];
         break;
       case "agy":
         defaultBinPath = path.join(userHome, ".local", "bin", "agy");
@@ -326,12 +403,23 @@ async function queryLocalCLI(
       if (isSettled) return;
       isSettled = true;
       clearTimeout(timer);
-      cleanupTempFile().then(() => {
+      cleanupTempFile().then(async () => {
         if (code !== 0) {
           reject(new Error(`Локальный CLI ${agentName} завершился с кодом ${code}.\nStderr: ${stderr}`));
         } else {
-          const result = agentName === "claude" && finalResult ? finalResult : stdout;
-          resolve(cleanCLIOutput(result));
+          let result = agentName === "claude" && finalResult ? finalResult : stdout;
+          result = cleanCLIOutput(result);
+
+          try {
+            const artifacts = await detectAndReadSessionArtifacts(agentName, startTime);
+            if (artifacts) {
+              result += artifacts;
+            }
+          } catch (artifactErr: any) {
+            process.stderr.write(`[Orchestrator] Ошибка парсинга артефактов: ${artifactErr.message}\n`);
+          }
+
+          resolve(result);
         }
       });
     });
