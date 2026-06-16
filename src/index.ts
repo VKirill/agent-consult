@@ -6,7 +6,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { loadConfig, loadRolePrompt, ensureAgentHomeDirs } from "./config.js";
 import { checkOpenRouterLiveness } from "./openrouter-client.js";
-import { runConsultation } from "./consult-orchestrator.js";
+import { runConsultation, activeChildPids } from "./consult-orchestrator.js";
+import { spawn } from "child_process";
 
 // Создаем инстанс сервера
 const server = new Server(
@@ -247,6 +248,40 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   throw new Error(`Неизвестный инструмент: ${name}`);
+});
+
+// ── Функция очистки дочерних процессов при выходе ──────────────────────
+function cleanupAllChildren() {
+  if (activeChildPids.size > 0) {
+    process.stderr.write(`[Agent Consult] Завершение работы. Принудительно завершаем ${activeChildPids.size} дочерних процессов...\n`);
+    for (const pid of activeChildPids) {
+      try {
+        if (process.platform === "win32") {
+          spawn("taskkill", ["/pid", pid.toString(), "/f", "/t"]);
+        } else {
+          process.kill(-pid, "SIGKILL");
+        }
+      } catch (err) {
+        // Игнорируем
+      }
+    }
+    activeChildPids.clear();
+  }
+}
+
+// Регистрируем обработчики выхода родительского процесса
+process.on("exit", cleanupAllChildren);
+process.on("SIGINT", () => {
+  cleanupAllChildren();
+  process.exit(0);
+});
+process.on("SIGTERM", () => {
+  cleanupAllChildren();
+  process.exit(0);
+});
+process.on("SIGHUP", () => {
+  cleanupAllChildren();
+  process.exit(0);
 });
 
 // ── Подключение транспорта и старт сервера ──────────────────────────────

@@ -11,6 +11,8 @@ export interface CharacterPersonality {
   description: string;
 }
 
+export const activeChildPids = new Set<number>();
+
 export const PERSONALITIES: CharacterPersonality[] = [
   {
     id: "meticulous",
@@ -132,6 +134,16 @@ async function queryLocalCLI(
       }
     });
 
+    if (child.pid) {
+      activeChildPids.add(child.pid);
+    }
+
+    const cleanupPid = () => {
+      if (child.pid) {
+        activeChildPids.delete(child.pid);
+      }
+    };
+
     let stdout = "";
     let stderr = "";
     let isSettled = false;
@@ -173,6 +185,7 @@ async function queryLocalCLI(
         timer = setTimeout(() => {
           if (isSettled) return;
           isSettled = true;
+          cleanupPid();
           killProcessGroup("SIGKILL");
           reject(new Error(`Превышен таймаут ожидания ответа от локального CLI ${agentName} (прошло ${Math.round(elapsed / 1000)} сек, лимит составил ${Math.round(currentTimeoutMs / 1000)} сек)`));
         }, updatedRemaining);
@@ -187,6 +200,7 @@ async function queryLocalCLI(
     timer = setTimeout(() => {
       if (isSettled) return;
       isSettled = true;
+      cleanupPid();
       killProcessGroup("SIGTERM");
       setTimeout(() => killProcessGroup("SIGKILL"), 3000);
       reject(new Error(`Превышен таймаут ожидания ответа от локального CLI ${agentName} (${timeoutMs} мс)`));
@@ -246,6 +260,7 @@ async function queryLocalCLI(
     });
 
     child.on("close", (code) => {
+      cleanupPid();
       if (isSettled) return;
       isSettled = true;
       clearTimeout(timer);
@@ -258,6 +273,7 @@ async function queryLocalCLI(
     });
 
     child.on("error", (err) => {
+      cleanupPid();
       if (isSettled) return;
       isSettled = true;
       clearTimeout(timer);
