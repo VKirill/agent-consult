@@ -393,12 +393,22 @@ async function queryLocalCLI(
 
       const checkForInteractiveAuth = (chunk: Buffer): boolean => {
         const outputToCheck = chunk.toString();
+        
+        // Защита от ложных срабатываний при обсуждении или выводе исходного кода
         if (
-          outputToCheck.includes("To sign in, open this URL") ||
-          outputToCheck.includes("Confirm this code") ||
-          outputToCheck.includes("Waiting for authorization") ||
-          outputToCheck.includes("oauth2/device")
+          outputToCheck.includes("includes") ||
+          outputToCheck.includes("outputToCheck") ||
+          outputToCheck.includes("const ") ||
+          outputToCheck.includes("function")
         ) {
+          return false;
+        }
+
+        const hasClaudeAuth = /To sign in, open this URL:\s*https?:\/\//i.test(outputToCheck);
+        const hasCodexAuth = /Confirm this code|Waiting for authorization/i.test(outputToCheck);
+        const hasGrokAuth = /oauth2\/device/i.test(outputToCheck) && /https?:\/\//i.test(outputToCheck);
+
+        if (hasClaudeAuth || hasCodexAuth || hasGrokAuth) {
           if (!isSettled) {
             isSettled = true;
             cleanupPid();
