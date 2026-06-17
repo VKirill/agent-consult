@@ -1007,6 +1007,13 @@ export async function runConsultation(options: {
   if (!skipSynthesis && successfulResponses.length > 0) {
     let agentsReport = `Исходный вопрос: <source_question>${question}</source_question>\n\n`;
     agentsReport += `Роль специалиста: "${role}"\n\n`;
+    
+    agentsReport += `Сводка работы агентов (Summary):\n`;
+    for (const res of agentResults) {
+      agentsReport += `- Агент ${res.agentName.toUpperCase()} (${res.model}): ${res.success ? `✅ Успешно за ${(res.durationMs / 1000).toFixed(2)}с` : `❌ Ошибка: ${res.error}`}\n`;
+    }
+    agentsReport += `\n`;
+    
     agentsReport += `Ответы специализированных агентов:\n\n`;
     
     for (const res of successfulResponses) {
