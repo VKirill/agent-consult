@@ -712,37 +712,12 @@ export async function runAgent(
               sessionId
             );
           } catch (retryErr: any) {
-            process.stderr.write(`[Consult Orchestrator] ⚠️ Повторный запуск локального агента ${agentName} завершился сбоем. Переключаемся на резервный опрос через OpenRouter (модель: ${agentConfig.model})...\n`);
-            content = await queryOpenRouter(
-              apiKey,
-              agentConfig.model,
-              systemPrompt,
-              question,
-              agentConfig,
-              timeoutMs,
-              retryAttempts,
-              referer,
-              title
-            );
+            process.stderr.write(`[Consult Orchestrator] ❌ Повторный запуск локального агента ${agentName} после восстановления credentials завершился сбоем.\n`);
+            throw retryErr;
           }
         } else {
-          process.stderr.write(`[Consult Orchestrator] ⚠️ Ошибка при запуске локального агента ${agentName}: ${errStr}. Переключаемся на резервный опрос через OpenRouter (модель: ${agentConfig.model})...\n`);
-          try {
-            content = await queryOpenRouter(
-              apiKey,
-              agentConfig.model,
-              systemPrompt,
-              question,
-              agentConfig,
-              timeoutMs,
-              retryAttempts,
-              referer,
-              title
-            );
-          } catch (orErr: any) {
-            process.stderr.write(`[Consult Orchestrator] ❌ Резервный опрос через OpenRouter для ${agentName} также завершился сбоем: ${orErr.message || String(orErr)}\n`);
-            throw cliErr;
-          }
+          process.stderr.write(`[Consult Orchestrator] ❌ Ошибка при запуске локального агента ${agentName}: ${errStr}\n`);
+          throw cliErr;
         }
       }
     } else {
