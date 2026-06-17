@@ -1,0 +1,2082 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "agent_counsult",
+    "is_monorepo": true,
+    "total_files": 67,
+    "entry_points": [
+      "src/index.ts"
+    ],
+    "tech_stack": [
+      {
+        "name": "Node.js",
+        "version": null,
+        "category": "language"
+      },
+      {
+        "name": "TypeScript",
+        "version": "5.3.3",
+        "category": "language"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "file:AGENTS.md",
+      "type": "document",
+      "filePath": "AGENTS.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 69,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 4,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:CHANGELOG.md",
+      "type": "document",
+      "filePath": "CHANGELOG.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 91,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 5,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:CLAUDE.md",
+      "type": "document",
+      "filePath": "CLAUDE.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 85,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 6,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:CODE_OF_CONDUCT.md",
+      "type": "document",
+      "filePath": "CODE_OF_CONDUCT.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 127,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 7,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:CONTRIBUTING.md",
+      "type": "document",
+      "filePath": "CONTRIBUTING.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 60,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 8,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:README.de.md",
+      "type": "document",
+      "filePath": "README.de.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 273,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 9,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:README.es.md",
+      "type": "document",
+      "filePath": "README.es.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 281,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 10,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:README.md",
+      "type": "document",
+      "filePath": "README.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 260,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 11,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:README.ru.md",
+      "type": "document",
+      "filePath": "README.ru.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 402,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 12,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:README.zh.md",
+      "type": "document",
+      "filePath": "README.zh.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 249,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 13,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:config.example.json",
+      "type": "config",
+      "filePath": "config.example.json",
+      "language": "json",
+      "symbolCount": 0,
+      "lineCount": 68,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 14,
+      "tags": [
+        "config"
+      ],
+      "summary": ""
+    },
+    {
+      "id": "file:SECURITY.md",
+      "type": "document",
+      "filePath": "SECURITY.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 27,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 15,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:package.json",
+      "type": "config",
+      "filePath": "package.json",
+      "language": "json",
+      "symbolCount": 0,
+      "lineCount": 27,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 16,
+      "tags": [
+        "config"
+      ],
+      "summary": ""
+    },
+    {
+      "id": "file:SUPPORT.md",
+      "type": "document",
+      "filePath": "SUPPORT.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 44,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 17,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:tsconfig.json",
+      "type": "config",
+      "filePath": "tsconfig.json",
+      "language": "json",
+      "symbolCount": 0,
+      "lineCount": 7,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 18,
+      "tags": [
+        "config"
+      ],
+      "summary": ""
+    },
+    {
+      "id": "file:.github/pull_request_template.md",
+      "type": "document",
+      "filePath": ".github/pull_request_template.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 29,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 19,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:.github/ISSUE_TEMPLATE/bug_report.md",
+      "type": "document",
+      "filePath": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 18,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 20,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:.github/ISSUE_TEMPLATE/feature_request.md",
+      "type": "document",
+      "filePath": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 17,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 21,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:.github/workflows/ci.yml",
+      "type": "config",
+      "filePath": ".github/workflows/ci.yml",
+      "language": "yaml",
+      "symbolCount": 0,
+      "lineCount": 13,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 22,
+      "tags": [
+        "config"
+      ],
+      "summary": ""
+    },
+    {
+      "id": "file:docs/architecture.en.md",
+      "type": "document",
+      "filePath": "docs/architecture.en.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 92,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 23,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:docs/architecture.md",
+      "type": "document",
+      "filePath": "docs/architecture.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 131,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 24,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:docs/roles_and_mcp_mapping.en.md",
+      "type": "document",
+      "filePath": "docs/roles_and_mcp_mapping.en.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 81,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 25,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:docs/roles_and_mcp_mapping.md",
+      "type": "document",
+      "filePath": "docs/roles_and_mcp_mapping.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 129,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 26,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:docs/troubleshooting.en.md",
+      "type": "document",
+      "filePath": "docs/troubleshooting.en.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 60,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 27,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:docs/troubleshooting.md",
+      "type": "document",
+      "filePath": "docs/troubleshooting.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 97,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 28,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/data_engineer.md",
+      "type": "document",
+      "filePath": "profiles/data_engineer.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 103,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 29,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/general.md",
+      "type": "document",
+      "filePath": "profiles/general.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 109,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 30,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/marketer.md",
+      "type": "document",
+      "filePath": "profiles/marketer.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 111,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 31,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/qa_engineer.md",
+      "type": "document",
+      "filePath": "profiles/qa_engineer.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 105,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 32,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/security_auditor.md",
+      "type": "document",
+      "filePath": "profiles/security_auditor.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 126,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 33,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/app_architect.md",
+      "type": "document",
+      "filePath": "profiles/app_architect.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 134,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 34,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/system_architect.md",
+      "type": "document",
+      "filePath": "profiles/system_architect.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 121,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 35,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/programmer.md",
+      "type": "document",
+      "filePath": "profiles/programmer.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 129,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 36,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/web_architect.md",
+      "type": "document",
+      "filePath": "profiles/web_architect.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 131,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 37,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/personalities/critic.md",
+      "type": "document",
+      "filePath": "profiles/personalities/critic.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 51,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 38,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/personalities/meticulous.md",
+      "type": "document",
+      "filePath": "profiles/personalities/meticulous.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 49,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 39,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/personalities/pragmatist.md",
+      "type": "document",
+      "filePath": "profiles/personalities/pragmatist.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 61,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 40,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/personalities/security_guard.md",
+      "type": "document",
+      "filePath": "profiles/personalities/security_guard.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 59,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 41,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/gitnexus.md",
+      "type": "document",
+      "filePath": "skills/gitnexus.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 46,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 42,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/personalities/innovator.md",
+      "type": "document",
+      "filePath": "profiles/personalities/innovator.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 45,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 43,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/repowise.md",
+      "type": "document",
+      "filePath": "skills/repowise.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 42,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 44,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/docs/adr-template.md",
+      "type": "document",
+      "filePath": "skills/docs/adr-template.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 48,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 45,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/gitnexus-cli/SKILL.md",
+      "type": "document",
+      "filePath": "skills/gitnexus-cli/SKILL.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 89,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 46,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/gitnexus-debugging/SKILL.md",
+      "type": "document",
+      "filePath": "skills/gitnexus-debugging/SKILL.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 82,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 47,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/gitnexus-exploring/SKILL.md",
+      "type": "document",
+      "filePath": "skills/gitnexus-exploring/SKILL.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 78,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 48,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/synthesis.md",
+      "type": "document",
+      "filePath": "profiles/synthesis.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 97,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 49,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/gitnexus-guide/SKILL.md",
+      "type": "document",
+      "filePath": "skills/gitnexus-guide/SKILL.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 89,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 50,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/gitnexus-pr-review/SKILL.md",
+      "type": "document",
+      "filePath": "skills/gitnexus-pr-review/SKILL.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 138,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 51,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/gitnexus-refactoring/SKILL.md",
+      "type": "document",
+      "filePath": "skills/gitnexus-refactoring/SKILL.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 105,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 52,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/my-complex-skill/SKILL.md",
+      "type": "document",
+      "filePath": "skills/my-complex-skill/SKILL.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 10,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 53,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/security/owasp-top10.md",
+      "type": "document",
+      "filePath": "skills/security/owasp-top10.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 68,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 54,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/testing/tdd-methodology.md",
+      "type": "document",
+      "filePath": "skills/testing/tdd-methodology.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 54,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 55,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/personalities/minimalist.md",
+      "type": "document",
+      "filePath": "profiles/personalities/minimalist.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 47,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 56,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:profiles/personalities/questioner.md",
+      "type": "document",
+      "filePath": "profiles/personalities/questioner.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 46,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 57,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/config.ts",
+      "type": "file",
+      "filePath": "src/config.ts",
+      "language": "typescript",
+      "symbolCount": 9,
+      "lineCount": 629,
+      "complexity": "complex",
+      "pagerank": 0.061879,
+      "communityId": 0,
+      "tags": [],
+      "summary": "`src/config.ts` is the central configuration resolver and environment factory for the application, responsible for orchestrating agent home directory isolation, MCP server mapping, and system prompt retrieval.",
+      "primaryOwner": "VKirill"
+    },
+    {
+      "id": "function:src/config.ts:loadConfig",
+      "type": "function",
+      "filePath": "src/config.ts",
+      "name": "loadConfig",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/config.ts:loadRolePrompt",
+      "type": "function",
+      "filePath": "src/config.ts",
+      "name": "loadRolePrompt",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/config.ts:loadPersonalityPrompt",
+      "type": "function",
+      "filePath": "src/config.ts",
+      "name": "loadPersonalityPrompt",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/config.ts:copyFileSafe",
+      "type": "function",
+      "filePath": "src/config.ts",
+      "name": "copyFileSafe",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/config.ts:setupGrokConfig",
+      "type": "function",
+      "filePath": "src/config.ts",
+      "name": "setupGrokConfig",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/config.ts:setupAgentMcpConfig",
+      "type": "function",
+      "filePath": "src/config.ts",
+      "name": "setupAgentMcpConfig",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/config.ts:ensureAgentHomeDirs",
+      "type": "function",
+      "filePath": "src/config.ts",
+      "name": "ensureAgentHomeDirs",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:skills/gitnexus-impact-analysis/SKILL.md",
+      "type": "document",
+      "filePath": "skills/gitnexus-impact-analysis/SKILL.md",
+      "language": "markdown",
+      "symbolCount": 0,
+      "lineCount": 76,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 58,
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/test-local.ts",
+      "type": "file",
+      "filePath": "src/test-local.ts",
+      "language": "typescript",
+      "symbolCount": 1,
+      "lineCount": 49,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 1,
+      "tags": [],
+      "summary": "`src/test-local.ts` is the central diagnostic entry point and verification orchestrator \u2014 it consumes system configurations and agent definitions to validate environment integrity, role prompt availability, and external connectivity via the OpenRouter bridge.",
+      "primaryOwner": "VKirill"
+    },
+    {
+      "id": "function:src/test-local.ts:test",
+      "type": "function",
+      "filePath": "src/test-local.ts",
+      "name": "test",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/index.ts",
+      "type": "file",
+      "filePath": "src/index.ts",
+      "language": "typescript",
+      "symbolCount": 2,
+      "lineCount": 434,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 1,
+      "tags": [
+        "entry_point"
+      ],
+      "summary": "`src/index.ts` is the primary entry point and MCP (Model Context Protocol) server orchestrator \u2014 it registers tool definitions, dispatches incoming requests to the consultation pipeline, and manages the lifecycle of child processes.",
+      "primaryOwner": "VKirill"
+    },
+    {
+      "id": "function:src/index.ts:cleanupAllChildren",
+      "type": "function",
+      "filePath": "src/index.ts",
+      "name": "cleanupAllChildren",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/index.ts:main",
+      "type": "function",
+      "filePath": "src/index.ts",
+      "name": "main",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/test-full-consult.ts",
+      "type": "file",
+      "filePath": "src/test-full-consult.ts",
+      "language": "typescript",
+      "symbolCount": 1,
+      "lineCount": 50,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 0,
+      "tags": [],
+      "summary": "`test-full-consult.ts` is the central diagnostic entry point and high-PageRank verification harness for the multi-agent consultation pipeline \u2014 it orchestrates environment initialization, configuration resolution, and triggers the full-cycle execution of the consultation orchestrator.",
+      "primaryOwner": "VKirill"
+    },
+    {
+      "id": "function:src/test-full-consult.ts:testFullConsult",
+      "type": "function",
+      "filePath": "src/test-full-consult.ts",
+      "name": "testFullConsult",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/test-agents-time.ts",
+      "type": "file",
+      "filePath": "src/test-agents-time.ts",
+      "language": "typescript",
+      "symbolCount": 1,
+      "lineCount": 98,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 0,
+      "tags": [],
+      "summary": "`src/test-agents-time.ts` is the performance diagnostic entry point and high-PageRank integration validator for the multi-agent system \u2014 it orchestrates the measurement of agent response latency, success rates, and output quality by consuming the `consult-orchestrator` and `config` modules."
+    },
+    {
+      "id": "function:src/test-agents-time.ts:benchmark",
+      "type": "function",
+      "filePath": "src/test-agents-time.ts",
+      "name": "benchmark",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/test-mcp-direct.ts",
+      "type": "file",
+      "filePath": "src/test-mcp-direct.ts",
+      "language": "typescript",
+      "symbolCount": 1,
+      "lineCount": 122,
+      "complexity": "moderate",
+      "pagerank": 0.010783,
+      "communityId": 3,
+      "tags": [],
+      "summary": "`runDirectMcpCall` is the central diagnostic entry point and integration test harness for the MCP (Model Context Protocol) subsystem \u2014 it orchestrates the lifecycle of a child process, manages raw JSON-RPC communication over stdio, and validates tool execution.",
+      "primaryOwner": "VKirill"
+    },
+    {
+      "id": "function:src/test-mcp-direct.ts:runDirectMcpCall",
+      "type": "function",
+      "filePath": "src/test-mcp-direct.ts",
+      "name": "runDirectMcpCall",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/openrouter-client.ts",
+      "type": "file",
+      "filePath": "src/openrouter-client.ts",
+      "language": "typescript",
+      "symbolCount": 3,
+      "lineCount": 121,
+      "complexity": "moderate",
+      "pagerank": 0.020649,
+      "communityId": 1,
+      "tags": [],
+      "summary": "`src/openrouter-client.ts` is the central network adapter and communication gateway for the system \u2014 it acts as the high-PageRank bridge between the application logic and the OpenRouter API, orchestrating request dispatching, retry logic, liveness verification, and model-specific configuration mapping.",
+      "primaryOwner": "VKirill"
+    },
+    {
+      "id": "function:src/openrouter-client.ts:queryOpenRouter",
+      "type": "function",
+      "filePath": "src/openrouter-client.ts",
+      "name": "queryOpenRouter",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/openrouter-client.ts:checkOpenRouterLiveness",
+      "type": "function",
+      "filePath": "src/openrouter-client.ts",
+      "name": "checkOpenRouterLiveness",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/consult-orchestrator.ts",
+      "type": "file",
+      "filePath": "src/consult-orchestrator.ts",
+      "language": "typescript",
+      "symbolCount": 9,
+      "lineCount": 773,
+      "complexity": "complex",
+      "pagerank": 0.032716,
+      "communityId": 0,
+      "tags": [],
+      "summary": "`consult-orchestrator.ts` is the central orchestrator for the multi-agent consultation pipeline \u2014 it sequences agent discovery, local CLI execution, remote API dispatching, personality injection, and final synthesis of analytical results.",
+      "primaryOwner": "VKirill"
+    },
+    {
+      "id": "function:src/consult-orchestrator.ts:cleanCLIOutput",
+      "type": "function",
+      "filePath": "src/consult-orchestrator.ts",
+      "name": "cleanCLIOutput",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/consult-orchestrator.ts:stripAnsi",
+      "type": "function",
+      "filePath": "src/consult-orchestrator.ts",
+      "name": "stripAnsi",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/consult-orchestrator.ts:queryLocalCLI",
+      "type": "function",
+      "filePath": "src/consult-orchestrator.ts",
+      "name": "queryLocalCLI",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/consult-orchestrator.ts:loadAgentSkills",
+      "type": "function",
+      "filePath": "src/consult-orchestrator.ts",
+      "name": "loadAgentSkills",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/consult-orchestrator.ts:runAgent",
+      "type": "function",
+      "filePath": "src/consult-orchestrator.ts",
+      "name": "runAgent",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/consult-orchestrator.ts:isLocalAgentAvailable",
+      "type": "function",
+      "filePath": "src/consult-orchestrator.ts",
+      "name": "isLocalAgentAvailable",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "function:src/consult-orchestrator.ts:runConsultation",
+      "type": "function",
+      "filePath": "src/consult-orchestrator.ts",
+      "name": "runConsultation",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/analyze-project.ts",
+      "type": "file",
+      "filePath": "src/analyze-project.ts",
+      "language": "typescript",
+      "symbolCount": 1,
+      "lineCount": 63,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 2,
+      "tags": [],
+      "summary": "`src/analyze-project.ts` is the central entry point and high-PageRank orchestrator for the project-wide auditing pipeline \u2014 it sequences configuration resolution, environment setup, and multi-agent consultation execution to produce a comprehensive technical analysis report.",
+      "primaryOwner": "VKirill"
+    },
+    {
+      "id": "function:src/analyze-project.ts:runAnalysis",
+      "type": "function",
+      "filePath": "src/analyze-project.ts",
+      "name": "runAnalysis",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/test-security-auditor.ts",
+      "type": "file",
+      "filePath": "src/test-security-auditor.ts",
+      "language": "typescript",
+      "symbolCount": 1,
+      "lineCount": 59,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 0,
+      "tags": [],
+      "summary": "`testSecurityAuditor` is the central diagnostic entry point and high-PageRank verification harness for the security auditing subsystem \u2014 it consumes environment configurations and orchestrates multi-agent consultations to validate the `security_auditor` role logic.",
+      "primaryOwner": "VKirill"
+    },
+    {
+      "id": "function:src/test-security-auditor.ts:testSecurityAuditor",
+      "type": "function",
+      "filePath": "src/test-security-auditor.ts",
+      "name": "testSecurityAuditor",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/test-skills-check.ts",
+      "type": "file",
+      "filePath": "src/test-skills-check.ts",
+      "language": "typescript",
+      "symbolCount": 1,
+      "lineCount": 57,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 0,
+      "tags": [],
+      "summary": "`test-skills-check.ts` is the diagnostic entry point and high-PageRank integration validator \u2014 it orchestrates the verification of agent environment isolation by consuming configuration services and triggering the `runConsultation` pipeline to probe agent awareness of local host resources.",
+      "primaryOwner": "VKirill"
+    },
+    {
+      "id": "function:src/test-skills-check.ts:testSkillsCheck",
+      "type": "function",
+      "filePath": "src/test-skills-check.ts",
+      "name": "testSkillsCheck",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    },
+    {
+      "id": "file:src/test-dynamic-mcp.ts",
+      "type": "file",
+      "filePath": "src/test-dynamic-mcp.ts",
+      "language": "typescript",
+      "symbolCount": 1,
+      "lineCount": 53,
+      "complexity": "simple",
+      "pagerank": 0.010783,
+      "communityId": 2,
+      "tags": [],
+      "summary": "`testDynamicMcp` is the high-PageRank diagnostic orchestrator and integration test entry point \u2014 it validates the dynamic generation of MCP (Model Context Protocol) configurations by consuming the `config.js` environment factory and verifying agent-specific filesystem state.",
+      "primaryOwner": "VKirill"
+    },
+    {
+      "id": "function:src/test-dynamic-mcp.ts:testDynamicMcp",
+      "type": "function",
+      "filePath": "src/test-dynamic-mcp.ts",
+      "name": "testDynamicMcp",
+      "language": "typescript",
+      "tags": [],
+      "summary": ""
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:src/config.ts",
+      "target": "function:src/config.ts:loadConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/config.ts",
+      "target": "function:src/config.ts:loadRolePrompt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/config.ts",
+      "target": "function:src/config.ts:loadPersonalityPrompt",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/config.ts",
+      "target": "function:src/config.ts:copyFileSafe",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/config.ts",
+      "target": "function:src/config.ts:setupGrokConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/config.ts",
+      "target": "function:src/config.ts:setupAgentMcpConfig",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/config.ts",
+      "target": "function:src/config.ts:ensureAgentHomeDirs",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/config.ts",
+      "target": "file:external:fs/promises",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/config.ts",
+      "target": "file:external:path",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/config.ts",
+      "target": "file:external:url",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/config.ts",
+      "target": "file:external:os",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-local.ts",
+      "target": "function:src/test-local.ts:test",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-local.ts",
+      "target": "file:src/config.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-local.ts",
+      "target": "file:src/openrouter-client.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "function:src/index.ts:cleanupAllChildren",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "function:src/index.ts:main",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:external:@modelcontextprotocol/sdk/server/index.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:external:@modelcontextprotocol/sdk/server/stdio.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:external:@modelcontextprotocol/sdk/types.js",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/config.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/openrouter-client.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:src/consult-orchestrator.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/index.ts",
+      "target": "file:external:child_process",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-full-consult.ts",
+      "target": "function:src/test-full-consult.ts:testFullConsult",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-full-consult.ts",
+      "target": "file:src/config.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-full-consult.ts",
+      "target": "file:src/consult-orchestrator.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-agents-time.ts",
+      "target": "function:src/test-agents-time.ts:benchmark",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-agents-time.ts",
+      "target": "file:src/config.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-agents-time.ts",
+      "target": "file:src/consult-orchestrator.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-mcp-direct.ts",
+      "target": "function:src/test-mcp-direct.ts:runDirectMcpCall",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-mcp-direct.ts",
+      "target": "file:external:child_process",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-mcp-direct.ts",
+      "target": "file:external:path",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-mcp-direct.ts",
+      "target": "file:external:url",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/openrouter-client.ts",
+      "target": "function:src/openrouter-client.ts:queryOpenRouter",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/openrouter-client.ts",
+      "target": "function:src/openrouter-client.ts:checkOpenRouterLiveness",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/openrouter-client.ts",
+      "target": "file:src/config.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "function:src/consult-orchestrator.ts:cleanCLIOutput",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "function:src/consult-orchestrator.ts:stripAnsi",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "function:src/consult-orchestrator.ts:queryLocalCLI",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "function:src/consult-orchestrator.ts:loadAgentSkills",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "function:src/consult-orchestrator.ts:runAgent",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "function:src/consult-orchestrator.ts:isLocalAgentAvailable",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "function:src/consult-orchestrator.ts:runConsultation",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "file:src/config.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "file:src/openrouter-client.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "file:external:fs/promises",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "file:external:fs",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "file:external:path",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "file:external:child_process",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/consult-orchestrator.ts",
+      "target": "file:external:os",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/analyze-project.ts",
+      "target": "function:src/analyze-project.ts:runAnalysis",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/analyze-project.ts",
+      "target": "file:src/config.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/analyze-project.ts",
+      "target": "file:src/consult-orchestrator.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/analyze-project.ts",
+      "target": "file:external:fs/promises",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/analyze-project.ts",
+      "target": "file:external:path",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-security-auditor.ts",
+      "target": "function:src/test-security-auditor.ts:testSecurityAuditor",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-security-auditor.ts",
+      "target": "file:src/config.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-security-auditor.ts",
+      "target": "file:src/consult-orchestrator.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-skills-check.ts",
+      "target": "function:src/test-skills-check.ts:testSkillsCheck",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-skills-check.ts",
+      "target": "file:src/config.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-skills-check.ts",
+      "target": "file:src/consult-orchestrator.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-dynamic-mcp.ts",
+      "target": "function:src/test-dynamic-mcp.ts:testDynamicMcp",
+      "type": "contains",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-dynamic-mcp.ts",
+      "target": "file:src/config.ts",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-dynamic-mcp.ts",
+      "target": "file:external:fs/promises",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    },
+    {
+      "source": "file:src/test-dynamic-mcp.ts",
+      "target": "file:external:path",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 1.0
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:test",
+      "name": "System Integration Testing",
+      "description": "A collection of orchestration and security test suites designed to validate system components and configuration settings.",
+      "nodeIds": [
+        "file:external:fs",
+        "file:external:os",
+        "file:src/config.ts",
+        "file:src/consult-orchestrator.ts",
+        "file:src/test-agents-time.ts",
+        "file:src/test-full-consult.ts",
+        "file:src/test-security-auditor.ts",
+        "file:src/test-skills-check.ts"
+      ],
+      "display_order": 0
+    },
+    {
+      "id": "layer:external-modelcontextprotocol-sdk",
+      "name": "MCP Protocol Interface",
+      "description": "Core infrastructure for managing Model Context Protocol server connections and external API client communication.",
+      "nodeIds": [
+        "file:external:@modelcontextprotocol/sdk/server/index.js",
+        "file:external:@modelcontextprotocol/sdk/server/stdio.js",
+        "file:external:@modelcontextprotocol/sdk/types.js",
+        "file:src/index.ts",
+        "file:src/openrouter-client.ts",
+        "file:src/test-local.ts"
+      ],
+      "display_order": 1
+    },
+    {
+      "id": "layer:promises",
+      "name": "Project Analysis Utilities",
+      "description": "File system and path management tools used for dynamic project analysis and runtime environment inspection.",
+      "nodeIds": [
+        "file:external:fs/promises",
+        "file:external:path",
+        "file:src/analyze-project.ts",
+        "file:src/test-dynamic-mcp.ts"
+      ],
+      "display_order": 2
+    },
+    {
+      "id": "layer:test-3",
+      "name": "Process Execution Tests",
+      "description": "Isolated test utilities focused on spawning and managing child processes for direct MCP integration testing.",
+      "nodeIds": [
+        "file:external:child_process",
+        "file:external:url",
+        "file:src/test-mcp-direct.ts"
+      ],
+      "display_order": 3
+    },
+    {
+      "id": "layer:agents",
+      "name": "Agent Documentation",
+      "description": "Reference documentation outlining the architecture and capabilities of the system's autonomous agents.",
+      "nodeIds": [
+        "file:AGENTS.md"
+      ],
+      "display_order": 4
+    },
+    {
+      "id": "layer:changelog",
+      "name": "Project Changelog",
+      "description": "Contains the historical record of version updates and feature changes for the project.",
+      "nodeIds": [
+        "file:CHANGELOG.md"
+      ],
+      "display_order": 5
+    },
+    {
+      "id": "layer:claude",
+      "name": "Claude AI Guidelines",
+      "description": "Provides specific instructions and context for AI-assisted development within the repository.",
+      "nodeIds": [
+        "file:CLAUDE.md"
+      ],
+      "display_order": 6
+    },
+    {
+      "id": "layer:code-of-conduct",
+      "name": "Community Code Conduct",
+      "description": "Defines the expected standards of behavior and interaction for all project contributors.",
+      "nodeIds": [
+        "file:CODE_OF_CONDUCT.md"
+      ],
+      "display_order": 7
+    },
+    {
+      "id": "layer:contributing",
+      "name": "Contribution Guidelines",
+      "description": "Outlines the processes and requirements for developers wishing to submit code or documentation.",
+      "nodeIds": [
+        "file:CONTRIBUTING.md"
+      ],
+      "display_order": 8
+    },
+    {
+      "id": "layer:readme-de",
+      "name": "German Project Documentation",
+      "description": "Provides a localized version of the project overview and setup instructions in German.",
+      "nodeIds": [
+        "file:README.de.md"
+      ],
+      "display_order": 9
+    },
+    {
+      "id": "layer:readme-es",
+      "name": "Spanish Documentation",
+      "description": "Contains the project documentation localized for Spanish-speaking users.",
+      "nodeIds": [
+        "file:README.es.md"
+      ],
+      "display_order": 10
+    },
+    {
+      "id": "layer:readme",
+      "name": "Core Documentation",
+      "description": "Provides the primary project overview and setup instructions in English.",
+      "nodeIds": [
+        "file:README.md"
+      ],
+      "display_order": 11
+    },
+    {
+      "id": "layer:readme-ru",
+      "name": "Russian Documentation",
+      "description": "Contains the project documentation localized for Russian-speaking users.",
+      "nodeIds": [
+        "file:README.ru.md"
+      ],
+      "display_order": 12
+    },
+    {
+      "id": "layer:readme-zh",
+      "name": "Chinese Documentation",
+      "description": "Contains the project documentation localized for Chinese-speaking users.",
+      "nodeIds": [
+        "file:README.zh.md"
+      ],
+      "display_order": 13
+    },
+    {
+      "id": "layer:config",
+      "name": "Configuration Templates",
+      "description": "Provides a sample configuration file to help users initialize project settings.",
+      "nodeIds": [
+        "file:config.example.json"
+      ],
+      "display_order": 14
+    },
+    {
+      "id": "layer:security",
+      "name": "Security Policy Documentation",
+      "description": "Contains guidelines and protocols for reporting vulnerabilities and maintaining project security.",
+      "nodeIds": [
+        "file:SECURITY.md"
+      ],
+      "display_order": 15
+    },
+    {
+      "id": "layer:package",
+      "name": "Project Manifest Configuration",
+      "description": "Defines project metadata, dependencies, and scripts required for the Node.js environment.",
+      "nodeIds": [
+        "file:package.json"
+      ],
+      "display_order": 16
+    },
+    {
+      "id": "layer:support",
+      "name": "Community Support Guidelines",
+      "description": "Provides instructions and resources for users seeking assistance with the project.",
+      "nodeIds": [
+        "file:SUPPORT.md"
+      ],
+      "display_order": 17
+    },
+    {
+      "id": "layer:config-1",
+      "name": "TypeScript Compiler Configuration",
+      "description": "Specifies the build settings and compiler options for the TypeScript source code.",
+      "nodeIds": [
+        "file:tsconfig.json"
+      ],
+      "display_order": 18
+    },
+    {
+      "id": "layer:pull-request-template",
+      "name": "Pull Request Template",
+      "description": "Standardizes the submission format for code contributions to ensure consistent review processes.",
+      "nodeIds": [
+        "file:.github/pull_request_template.md"
+      ],
+      "display_order": 19
+    },
+    {
+      "id": "layer:issue-template",
+      "name": "Bug Report Template",
+      "description": "Standardized markdown template for reporting software defects in the repository.",
+      "nodeIds": [
+        "file:.github/ISSUE_TEMPLATE/bug_report.md"
+      ],
+      "display_order": 20
+    },
+    {
+      "id": "layer:issue-template-1",
+      "name": "Feature Request Template",
+      "description": "Standardized markdown template for proposing new functionality or enhancements.",
+      "nodeIds": [
+        "file:.github/ISSUE_TEMPLATE/feature_request.md"
+      ],
+      "display_order": 21
+    },
+    {
+      "id": "layer:workflows",
+      "name": "CI Pipeline Configuration",
+      "description": "Automated workflow definitions for continuous integration and build processes.",
+      "nodeIds": [
+        "file:.github/workflows/ci.yml"
+      ],
+      "display_order": 22
+    },
+    {
+      "id": "layer:docs",
+      "name": "Architecture Documentation",
+      "description": "High-level technical documentation outlining the system's architectural design.",
+      "nodeIds": [
+        "file:docs/architecture.en.md"
+      ],
+      "display_order": 23
+    },
+    {
+      "id": "layer:docs-1",
+      "name": "Project Knowledge Base",
+      "description": "Comprehensive documentation covering system architecture, role mappings, and troubleshooting guides.",
+      "nodeIds": [
+        "file:docs/architecture.md",
+        "file:docs/roles_and_mcp_mapping.en.md",
+        "file:docs/roles_and_mcp_mapping.md",
+        "file:docs/troubleshooting.en.md",
+        "file:docs/troubleshooting.md"
+      ],
+      "display_order": 24
+    },
+    {
+      "id": "layer:profiles",
+      "name": "Data Engineering Profile",
+      "description": "Contains the specific role definition and competency requirements for data engineering professionals.",
+      "nodeIds": [
+        "file:profiles/data_engineer.md"
+      ],
+      "display_order": 25
+    },
+    {
+      "id": "layer:profiles-1",
+      "name": "Professional Role Definitions",
+      "description": "A collection of descriptive profiles outlining the responsibilities and skill sets for various technical and architectural roles.",
+      "nodeIds": [
+        "file:profiles/general.md",
+        "file:profiles/marketer.md",
+        "file:profiles/qa_engineer.md",
+        "file:profiles/security_auditor.md",
+        "file:profiles/app_architect.md",
+        "file:profiles/system_architect.md",
+        "file:profiles/programmer.md",
+        "file:profiles/web_architect.md",
+        "file:profiles/synthesis.md"
+      ],
+      "display_order": 26
+    },
+    {
+      "id": "layer:profiles-personalities",
+      "name": "Critic Personality Profile",
+      "description": "Defines the behavioral characteristics and analytical approach of the critic persona.",
+      "nodeIds": [
+        "file:profiles/personalities/critic.md"
+      ],
+      "display_order": 27
+    },
+    {
+      "id": "layer:profiles-personalities-1",
+      "name": "Behavioral Personality Archetypes",
+      "description": "A library of diverse personality traits and cognitive styles used to influence system interactions and decision-making.",
+      "nodeIds": [
+        "file:profiles/personalities/meticulous.md",
+        "file:profiles/personalities/pragmatist.md",
+        "file:profiles/personalities/security_guard.md",
+        "file:profiles/personalities/innovator.md",
+        "file:profiles/personalities/minimalist.md",
+        "file:profiles/personalities/questioner.md"
+      ],
+      "display_order": 28
+    },
+    {
+      "id": "layer:skills",
+      "name": "GitNexus Skill Set",
+      "description": "Details the specific technical capabilities and operational knowledge associated with the GitNexus toolset.",
+      "nodeIds": [
+        "file:skills/gitnexus.md"
+      ],
+      "display_order": 29
+    },
+    {
+      "id": "layer:skills-1",
+      "name": "Core Skills Documentation",
+      "description": "Contains the primary documentation and foundational definitions for repository-wise skill sets.",
+      "nodeIds": [
+        "file:skills/repowise.md"
+      ],
+      "display_order": 30
+    },
+    {
+      "id": "layer:skills-docs",
+      "name": "Architecture Decision Records",
+      "description": "Provides standardized templates for documenting architectural decisions and project design choices.",
+      "nodeIds": [
+        "file:skills/docs/adr-template.md"
+      ],
+      "display_order": 31
+    },
+    {
+      "id": "layer:skills-gitnexus-cli",
+      "name": "GitNexus CLI Skill",
+      "description": "Defines the capabilities and operational documentation for the GitNexus command-line interface skill.",
+      "nodeIds": [
+        "file:skills/gitnexus-cli/SKILL.md"
+      ],
+      "display_order": 32
+    },
+    {
+      "id": "layer:skills-gitnexus-debugging",
+      "name": "GitNexus Debugging Skill",
+      "description": "Outlines the procedures and logic for performing debugging tasks within the GitNexus environment.",
+      "nodeIds": [
+        "file:skills/gitnexus-debugging/SKILL.md"
+      ],
+      "display_order": 33
+    },
+    {
+      "id": "layer:skills-gitnexus-exploring",
+      "name": "GitNexus Exploration Skill",
+      "description": "Details the functionality and usage patterns for exploring repository structures via GitNexus.",
+      "nodeIds": [
+        "file:skills/gitnexus-exploring/SKILL.md"
+      ],
+      "display_order": 34
+    },
+    {
+      "id": "layer:skills-gitnexus-guide",
+      "name": "GitNexus Guide Skill",
+      "description": "Contains documentation and configuration for the GitNexus instructional guide skill.",
+      "nodeIds": [
+        "file:skills/gitnexus-guide/SKILL.md"
+      ],
+      "display_order": 35
+    },
+    {
+      "id": "layer:skills-gitnexus-pr-review",
+      "name": "PR Review Skill",
+      "description": "Defines the logic and documentation for the automated pull request review skill.",
+      "nodeIds": [
+        "file:skills/gitnexus-pr-review/SKILL.md"
+      ],
+      "display_order": 36
+    },
+    {
+      "id": "layer:skills-gitnexus-refactoring",
+      "name": "Code Refactoring Skill",
+      "description": "Provides guidance and implementation details for the automated code refactoring skill.",
+      "nodeIds": [
+        "file:skills/gitnexus-refactoring/SKILL.md"
+      ],
+      "display_order": 37
+    },
+    {
+      "id": "layer:skills-my-complex-skill",
+      "name": "Complex Task Skill",
+      "description": "Houses the definition and documentation for a specialized, multi-step complex skill.",
+      "nodeIds": [
+        "file:skills/my-complex-skill/SKILL.md"
+      ],
+      "display_order": 38
+    },
+    {
+      "id": "layer:skills-security",
+      "name": "Security Compliance Skill",
+      "description": "Contains security-focused documentation and guidelines based on the OWASP Top 10.",
+      "nodeIds": [
+        "file:skills/security/owasp-top10.md"
+      ],
+      "display_order": 39
+    },
+    {
+      "id": "layer:skills-testing",
+      "name": "TDD Methodology Documentation",
+      "description": "Contains instructional documentation regarding Test-Driven Development practices and implementation strategies.",
+      "nodeIds": [
+        "file:skills/testing/tdd-methodology.md"
+      ],
+      "display_order": 40
+    },
+    {
+      "id": "layer:skills-gitnexus-impact-analysis",
+      "name": "GitNexus Impact Analysis",
+      "description": "Provides documentation and guidelines for performing impact analysis within the GitNexus ecosystem.",
+      "nodeIds": [
+        "file:skills/gitnexus-impact-analysis/SKILL.md"
+      ],
+      "display_order": 41
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "Project Overview and Entry Point",
+      "description": "Start by reviewing the project documentation to understand the system's purpose, then examine the main entry point to see how the application initializes.",
+      "nodeIds": [
+        "file:README.md",
+        "file:src/index.ts"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Configuration and Environment",
+      "description": "Understand how the system manages settings and environment variables, which are crucial for orchestrating the various agents and integrations.",
+      "nodeIds": [
+        "file:src/config.ts",
+        "file:config.example.json"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "MCP Protocol Infrastructure",
+      "description": "Explore the core communication layer that enables the system to interact with Model Context Protocol servers and external AI clients like OpenRouter.",
+      "nodeIds": [
+        "file:src/openrouter-client.ts",
+        "file:external:@modelcontextprotocol/sdk/types.js",
+        "file:external:@modelcontextprotocol/sdk/server/stdio.js"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "Orchestration and Logic",
+      "description": "Dive into the orchestrator, which manages the lifecycle of agents and coordinates complex tasks across the system.",
+      "nodeIds": [
+        "file:src/consult-orchestrator.ts",
+        "file:src/analyze-project.ts"
+      ]
+    },
+    {
+      "order": 5,
+      "title": "System Integration and Testing",
+      "description": "Examine the testing suite to understand how the system validates its own components, manages child processes, and ensures security compliance.",
+      "nodeIds": [
+        "file:src/test-mcp-direct.ts",
+        "file:src/test-agents-time.ts",
+        "file:external:child_process",
+        "file:external:fs"
+      ]
+    },
+    {
+      "order": 6,
+      "title": "Skills and Personality Framework",
+      "description": "Learn how the system defines agent capabilities and behavioral archetypes, which dictate how the AI interacts with the codebase.",
+      "nodeIds": [
+        "file:profiles/personalities/critic.md",
+        "file:skills/gitnexus.md",
+        "file:skills/security/owasp-top10.md"
+      ]
+    }
+  ]
+}

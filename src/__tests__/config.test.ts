@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getAgentHome, AGENT_HOMES_ROOT, atomicWriteFile, copyCredentialSafe } from "../config.js";
+import { getAgentHome, AGENT_HOMES_ROOT, atomicWriteFile, linkCredentialSafe } from "../config.js";
 import path from "path";
 import fs from "fs/promises";
 import os from "os";
@@ -42,31 +42,25 @@ describe("atomicWriteFile and copyCredentialSafe security", () => {
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 
-  it("should prevent copyCredentialSafe from following symlinks (TOCTOU protection)", async () => {
+  it("should linkCredentialSafe create symlink", async () => {
     await fs.mkdir(tempDir, { recursive: true });
     
     const realFile = path.join(tempDir, "real.txt");
     await fs.writeFile(realFile, "sensitive data");
 
-    const symlinkFile = path.join(tempDir, "symlink.txt");
-    try {
-      await fs.symlink(realFile, symlinkFile);
-    } catch (symErr) {
-      // На Windows создание симлинков может требовать прав администратора, пропускаем если не удалось
-      await fs.rm(tempDir, { recursive: true, force: true });
-      return;
-    }
-
     const destFile = path.join(tempDir, "dest.txt");
     
-    // Пытаемся скопировать симлинк. Метод должен проигнорировать его
-    await copyCredentialSafe(symlinkFile, destFile);
+    await linkCredentialSafe(realFile, destFile);
 
-    // Целевой файл не должен быть создан
-    await expect(fs.access(destFile)).rejects.toThrow();
+    // Должна создаться символическая ссылка
+    const stat = await fs.lstat(destFile);
+    expect(stat.isSymbolicLink()).toBe(true);
+
+    const target = await fs.readlink(destFile);
+    expect(target).toBe(realFile);
 
     await fs.unlink(realFile);
-    await fs.unlink(symlinkFile).catch(() => {});
+    await fs.unlink(destFile).catch(() => {});
     await fs.rm(tempDir, { recursive: true, force: true });
   });
 });

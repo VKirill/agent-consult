@@ -1,0 +1,36 @@
+provider: gemini
+model: gemini-3.1-flash-lite-preview
+embedder: gemini
+reasoning: auto
+
+git:
+  co_change_commit_limit: 500
+  blame_enabled: true
+
+dead_code:
+  enabled: true
+  safe_to_delete_threshold: 0.7
+
+maintenance:
+  cascade_budget: 30
+  background_regen_schedule: "0 2 * * *"
+
+exclude_patterns:
+- .gitnexus/
+- .repowise/
+- .claude_mcp/
+- .codex_mcp/
+- .claude/
+- .claude-flow/
+- .serena/
+- .worktrees/
+- .wiki-backup/
+- target/
+- .git/
+- node_modules/
+- dist/
+- .output/
+- .nuxt/
+- .turbo/
+- .storybook/
+- coverage/

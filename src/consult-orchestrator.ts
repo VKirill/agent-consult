@@ -488,7 +488,10 @@ async function queryLocalCLI(
           if (cleanLine.includes("ExperimentalWarning:") || cleanLine.includes("DeprecationWarning:")) continue;
           if (/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\-|\/\\]+$/.test(cleanLine)) continue;
           
-          process.stderr.write(`[Агент: ${agentName.toUpperCase()}] ${cleanLine}\n`);
+          const lower = cleanLine.toLowerCase();
+          if (lower.includes("error") || lower.includes("fail") || lower.includes("except") || lower.includes("fatal") || lower.includes("warn")) {
+            process.stderr.write(`[Агент: ${agentName.toUpperCase()} WARN/ERR] ${cleanLine}\n`);
+          }
         }
       });
 
@@ -1068,9 +1071,9 @@ export async function runConsultation(options: {
     outputMarkdown += `- **Время ответа**: ${(res.durationMs / 1000).toFixed(2)} сек\n\n`;
     
     if (res.success && res.content) {
-      outputMarkdown += `#### Ответ:\n${res.content}\n\n`;
+      outputMarkdown += `<details>\n<summary><b>Посмотреть детальный ответ агента ${res.agentName.toUpperCase()}</b></summary>\n\n${res.content}\n</details>\n\n`;
     } else {
-      outputMarkdown += `#### Ошибка:\n\`${res.error}\`\n\n`;
+      outputMarkdown += `<details>\n<summary><b>Посмотреть текст ошибки</b></summary>\n\n\`\`\`\n${res.error}\n\`\`\`\n</details>\n\n`;
     }
     outputMarkdown += `---\n\n`;
   }

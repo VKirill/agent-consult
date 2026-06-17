@@ -257,26 +257,20 @@ export function sanitizeLogMessage(message: string): string {
     .replace(/"(password|token|apiKey|secret)":\s*"[^"]+"/ig, '"$1": "[REDACTED]"');
 }
 
-export async function copyCredentialSafe(src: string, dest: string): Promise<void> {
-  let fd: fs.FileHandle | null = null;
+export async function linkCredentialSafe(src: string, dest: string): Promise<void> {
   try {
-    // Используем O_RDONLY и O_NOFOLLOW для блокирования следования по симлинкам на уровне ядра
-    fd = await fs.open(src, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
-    const stat = await fd.stat();
-    if (stat.isFile()) {
-      const content = await fd.readFile();
-      await atomicWriteFile(dest, content);
-    }
+    const srcExists = await fs.access(src).then(() => true).catch(() => false);
+    if (!srcExists) return;
+
+    const dir = path.dirname(dest);
+    await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+
+    // Удаляем старый файл/симлинк, если он есть, чтобы избежать EEXIST
+    await fs.unlink(dest).catch(() => {});
+
+    await fs.symlink(src, dest);
   } catch (err: any) {
-    if (err.code === "ENOENT" || err.code === "ELOOP") {
-      // ELOOP означает, что файл является символической ссылкой
-      return;
-    }
-    throw err;
-  } finally {
-    if (fd) {
-      await fd.close().catch(() => {});
-    }
+    process.stderr.write(`[Config] Ошибка создания символической ссылки с ${src} на ${dest}: ${err.message}\n`);
   }
 }
 
@@ -430,6 +424,8 @@ export async function setupAgentMcpConfig(agentName: string, role: string, sessi
       autoUpdates: globalJson.autoUpdates ?? false,
       theme: globalJson.theme ?? "light",
       userID: globalJson.userID,
+      machineID: globalJson.machineID,
+      oauthAccount: globalJson.oauthAccount,
       mcpServers: {},
       permissions: {
         allow: []
@@ -581,18 +577,19 @@ export async function ensureAgentHomeDirs(sessionId?: string): Promise<void> {
   if (sessionId) {
     const GLOBAL_HOME = os.homedir();
 
-    // Хелпер для копирования исключительно авторизационных токенов Claude
+    // Хелпер для создания символических ссылок на авторизационные токены Claude
     const copyClaudeAuth = async (targetHome: string) => {
-      await copyCredentialSafe(path.join(GLOBAL_HOME, ".claude", ".credentials.json"), path.join(targetHome, ".claude", ".credentials.json"));
-      await copyCredentialSafe(path.join(GLOBAL_HOME, ".claude", ".credentials.current_backup.json"), path.join(targetHome, ".claude", ".credentials.current_backup.json"));
+      await linkCredentialSafe(path.join(GLOBAL_HOME, ".claude", ".credentials.json"), path.join(targetHome, ".claude", ".credentials.json"));
+      await linkCredentialSafe(path.join(GLOBAL_HOME, ".claude", ".credentials.current_backup.json"), path.join(targetHome, ".claude", ".credentials.current_backup.json"));
+      await linkCredentialSafe(path.join(GLOBAL_HOME, ".claude.json"), path.join(targetHome, ".claude.json"));
     };
 
-    // Хелпер для копирования исключительно авторизационных токенов Gemini/Antigravity
+    // Хелпер для создания символических ссылок на авторизационные токены Gemini/Antigravity
     const copyGeminiAuth = async (targetHome: string) => {
-      await copyCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "oauth_creds.json"), path.join(targetHome, ".gemini", "oauth_creds.json"));
-      await copyCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "google_accounts.json"), path.join(targetHome, ".gemini", "google_accounts.json"));
-      await copyCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "installation_id"), path.join(targetHome, ".gemini", "installation_id"));
-      await copyCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "antigravity-cli", "antigravity-oauth-token"), path.join(targetHome, ".gemini", "antigravity-cli", "antigravity-oauth-token"));
+      await linkCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "oauth_creds.json"), path.join(targetHome, ".gemini", "oauth_creds.json"));
+      await linkCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "google_accounts.json"), path.join(targetHome, ".gemini", "google_accounts.json"));
+      await linkCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "installation_id"), path.join(targetHome, ".gemini", "installation_id"));
+      await linkCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "antigravity-cli", "antigravity-oauth-token"), path.join(targetHome, ".gemini", "antigravity-cli", "antigravity-oauth-token"));
 
       // Генерируем чистый settings.json с авторизацией oauth-personal и выключенным наследованием
       const targetSettingsPath = path.join(targetHome, ".gemini", "settings.json");
@@ -641,8 +638,8 @@ export async function ensureAgentHomeDirs(sessionId?: string): Promise<void> {
 
     // 1. Для codex (чистый минимальный конфиг + авторизация)
     const codexHome = getAgentHome("codex", sessionId);
-    await copyCredentialSafe(path.join(GLOBAL_HOME, ".codex", "auth.json"), path.join(codexHome, ".codex", "auth.json"));
-    await copyCredentialSafe(path.join(GLOBAL_HOME, ".codex", "installation_id"), path.join(codexHome, ".codex", "installation_id"));
+    await linkCredentialSafe(path.join(GLOBAL_HOME, ".codex", "auth.json"), path.join(codexHome, ".codex", "auth.json"));
+    await linkCredentialSafe(path.join(GLOBAL_HOME, ".codex", "installation_id"), path.join(codexHome, ".codex", "installation_id"));
     await copyClaudeAuth(codexHome);
     
     // Генерируем чистый минимальный config.toml для Codex
@@ -701,8 +698,8 @@ export async function ensureAgentHomeDirs(sessionId?: string): Promise<void> {
 
     // 6. Для grok (только авторизация + чистый config.toml)
     const copyGrokAuth = async (targetHome: string) => {
-      await copyCredentialSafe(path.join(GLOBAL_HOME, ".grok", "auth.json"), path.join(targetHome, ".grok", "auth.json"));
-      await copyCredentialSafe(path.join(GLOBAL_HOME, ".grok", "agent_id"), path.join(targetHome, ".grok", "agent_id"));
+      await linkCredentialSafe(path.join(GLOBAL_HOME, ".grok", "auth.json"), path.join(targetHome, ".grok", "auth.json"));
+      await linkCredentialSafe(path.join(GLOBAL_HOME, ".grok", "agent_id"), path.join(targetHome, ".grok", "agent_id"));
     };
     const grokHome = getAgentHome("grok", sessionId);
     await copyGrokAuth(grokHome);
@@ -726,23 +723,23 @@ export async function syncAgentCredentialsBack(sessionId: string): Promise<void>
 
   // Хелпер копирования исключительно авторизационных токенов Claude
   const syncClaudeAuth = async (targetHome: string) => {
-    await copyCredentialSafe(path.join(targetHome, ".claude", ".credentials.json"), path.join(GLOBAL_HOME, ".claude", ".credentials.json"));
-    await copyCredentialSafe(path.join(targetHome, ".claude", ".credentials.current_backup.json"), path.join(GLOBAL_HOME, ".claude", ".credentials.current_backup.json"));
+    await linkCredentialSafe(path.join(targetHome, ".claude", ".credentials.json"), path.join(GLOBAL_HOME, ".claude", ".credentials.json"));
+    await linkCredentialSafe(path.join(targetHome, ".claude", ".credentials.current_backup.json"), path.join(GLOBAL_HOME, ".claude", ".credentials.current_backup.json"));
   };
 
   // Хелпер копирования исключительно авторизационных токенов Gemini/Antigravity
   const syncGeminiAuth = async (targetHome: string) => {
-    await copyCredentialSafe(path.join(targetHome, ".gemini", "oauth_creds.json"), path.join(GLOBAL_HOME, ".gemini", "oauth_creds.json"));
-    await copyCredentialSafe(path.join(targetHome, ".gemini", "google_accounts.json"), path.join(GLOBAL_HOME, ".gemini", "google_accounts.json"));
-    await copyCredentialSafe(path.join(targetHome, ".gemini", "installation_id"), path.join(GLOBAL_HOME, ".gemini", "installation_id"));
-    await copyCredentialSafe(path.join(targetHome, ".gemini", "antigravity-cli", "antigravity-oauth-token"), path.join(GLOBAL_HOME, ".gemini", "antigravity-cli", "antigravity-oauth-token"));
+    await linkCredentialSafe(path.join(targetHome, ".gemini", "oauth_creds.json"), path.join(GLOBAL_HOME, ".gemini", "oauth_creds.json"));
+    await linkCredentialSafe(path.join(targetHome, ".gemini", "google_accounts.json"), path.join(GLOBAL_HOME, ".gemini", "google_accounts.json"));
+    await linkCredentialSafe(path.join(targetHome, ".gemini", "installation_id"), path.join(GLOBAL_HOME, ".gemini", "installation_id"));
+    await linkCredentialSafe(path.join(targetHome, ".gemini", "antigravity-cli", "antigravity-oauth-token"), path.join(GLOBAL_HOME, ".gemini", "antigravity-cli", "antigravity-oauth-token"));
   };
 
   try {
     // 1. Для codex
     const codexHome = getAgentHome("codex", sessionId);
-    await copyCredentialSafe(path.join(codexHome, ".codex", "auth.json"), path.join(GLOBAL_HOME, ".codex", "auth.json"));
-    await copyCredentialSafe(path.join(codexHome, ".codex", "installation_id"), path.join(GLOBAL_HOME, ".codex", "installation_id"));
+    await linkCredentialSafe(path.join(codexHome, ".codex", "auth.json"), path.join(GLOBAL_HOME, ".codex", "auth.json"));
+    await linkCredentialSafe(path.join(codexHome, ".codex", "installation_id"), path.join(GLOBAL_HOME, ".codex", "installation_id"));
     await syncClaudeAuth(codexHome);
 
     // 2. Для claude
@@ -763,8 +760,8 @@ export async function syncAgentCredentialsBack(sessionId: string): Promise<void>
 
     // 6. Для grok
     const grokHome = getAgentHome("grok", sessionId);
-    await copyCredentialSafe(path.join(grokHome, ".grok", "auth.json"), path.join(GLOBAL_HOME, ".grok", "auth.json"));
-    await copyCredentialSafe(path.join(grokHome, ".grok", "agent_id"), path.join(GLOBAL_HOME, ".grok", "agent_id"));
+    await linkCredentialSafe(path.join(grokHome, ".grok", "auth.json"), path.join(GLOBAL_HOME, ".grok", "auth.json"));
+    await linkCredentialSafe(path.join(grokHome, ".grok", "agent_id"), path.join(GLOBAL_HOME, ".grok", "agent_id"));
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     process.stderr.write(`[Config] Ошибка при обратной синхронизации токенов: ${msg}\n`);
