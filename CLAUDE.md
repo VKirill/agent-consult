@@ -13,7 +13,7 @@ All GitNexus guidelines and developer safety constraints have been consolidated 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **agent-consult** (515 symbols, 794 relationships, 41 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **agent-consult** (535 symbols, 842 relationships, 34 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > Index stale? Run `node .gitnexus/run.cjs analyze` from the project root — it auto-selects an available runner. No `.gitnexus/run.cjs` yet? `npx gitnexus analyze` (npm 11 crash → `npm i -g gitnexus`; #1939).
 
@@ -62,7 +62,7 @@ This project is indexed by GitNexus as **agent-consult** (515 symbols, 794 relat
 > (documentation, ownership, history, decisions). **Always verify against
 > actual source files before making changes** — the index may be stale.
 
-Last indexed: 2026-06-16 (commit f9dc6d5). Confidence: 100%.
+Last indexed: 2026-06-16 (commit 0d61bf3). Confidence: 100%.
 ### Architecture
 This repository implements an autonomous agent orchestration engine: it consumes user prompts and codebase context, processes them through a multi-agent workflow managed by an orchestrator, and produces structured analytical outputs or task executions via LLM integration. The system leverages a modular architecture to coordinate specialized agents, manage configuration-driven personalities, and interface with external AI models via OpenRouter. The project is built on a TypeScript-first foundation, utilizing a robust ecosystem for web services, schema validation, and AI integration:
 

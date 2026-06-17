@@ -1,7 +1,9 @@
 import fs from "fs/promises";
+import { constants as fsConstants } from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import os from "os";
+import { randomUUID } from "crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,6 +33,11 @@ export interface AppConfig {
   openrouter_title?: string;
   timeout_ms: number;
   retry_attempts: number;
+  concurrency?: {
+    maxConcurrency?: number;
+    maxQueueSize?: number;
+    queueTimeoutMs?: number;
+  };
   agents: {
     codex: AgentConfig;
     claude: AgentConfig;
@@ -43,18 +50,29 @@ export interface AppConfig {
   synthesis: AgentConfig;
 }
 
+let cachedConfig: AppConfig | null = null;
+
+export function invalidateConfigCache(): void {
+  cachedConfig = null;
+}
+
 /**
  * Загружает конфигурацию из файла config.json и переменных окружения
  */
 export async function loadConfig(): Promise<AppConfig> {
+  if (cachedConfig) {
+    return cachedConfig;
+  }
+
   const configPath = path.join(SERVER_ROOT, "config.json");
   let fileConfig: Partial<AppConfig> = {};
 
   try {
     const data = await fs.readFile(configPath, "utf-8");
     fileConfig = JSON.parse(data);
-  } catch (err: any) {
-    process.stderr.write(`Предупреждение: Не удалось прочитать config.json (${err.message}). Будут использованы значения по умолчанию.\n`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`Предупреждение: Не удалось прочитать config.json (${msg}). Будут использованы значения по умолчанию.\n`);
   }
 
   // Приоритет у переменной окружения
@@ -66,6 +84,11 @@ export async function loadConfig(): Promise<AppConfig> {
     openrouter_title: fileConfig.openrouter_title ?? "Agent Consult MCP Server",
     timeout_ms: fileConfig.timeout_ms ?? 120000,
     retry_attempts: fileConfig.retry_attempts ?? 2,
+    concurrency: {
+      maxConcurrency: fileConfig.concurrency?.maxConcurrency ?? 3,
+      maxQueueSize: fileConfig.concurrency?.maxQueueSize ?? 20,
+      queueTimeoutMs: fileConfig.concurrency?.queueTimeoutMs ?? 180000
+    },
     agents: {
       codex: {
         model: fileConfig.agents?.codex?.model ?? "openai/gpt-5.5",
@@ -128,6 +151,7 @@ export async function loadConfig(): Promise<AppConfig> {
     }
   }
 
+  cachedConfig = config;
   return config;
 }
 
@@ -136,6 +160,14 @@ export async function loadConfig(): Promise<AppConfig> {
  */
 export async function loadRolePrompt(roleName: string): Promise<string> {
   const safeRoleName = roleName.replace(/[^a-zA-Z0-9_\-]/g, ""); // Защита от path traversal
+  if (!safeRoleName) {
+    try {
+      const generalPath = path.join(SERVER_ROOT, "profiles", "general.md");
+      return await fs.readFile(generalPath, "utf-8");
+    } catch {
+      return `Роль: Консультант. Ответь на следующий вопрос:\n`;
+    }
+  }
   const profilePath = path.join(SERVER_ROOT, "profiles", `${safeRoleName}.md`);
 
   try {
@@ -158,6 +190,9 @@ export async function loadRolePrompt(roleName: string): Promise<string> {
  */
 export async function loadPersonalityPrompt(personalityId: string): Promise<string> {
   const safeName = personalityId.replace(/[^a-zA-Z0-9_\-]/g, ""); // Защита от path traversal
+  if (!safeName) {
+    return "";
+  }
   const profilePath = path.join(SERVER_ROOT, "profiles", "personalities", `${safeName}.md`);
 
   try {
@@ -168,22 +203,80 @@ export async function loadPersonalityPrompt(personalityId: string): Promise<stri
   }
 }
 
-async function copyFileSafe(src: string, dest: string, mode?: number): Promise<void> {
-  try {
-    const stat = await fs.stat(src);
-    if (stat.isFile()) {
-      await fs.mkdir(path.dirname(dest), { recursive: true, mode: 0o700 });
-      await fs.copyFile(src, dest);
-      if (mode !== undefined) {
-        try {
-          await fs.chmod(dest, mode);
-        } catch (chmodErr) {
-          // Игнорируем
-        }
-      }
+export const LOCAL_AGENTS = ["codex", "claude", "agy", "gemini", "mimo", "grok"];
+
+export function getAgentHome(agentName: string, sessionId?: string): string {
+  const safeAgentName = agentName.replace(/[^a-zA-Z0-9_\-]/g, "");
+  if (!safeAgentName) {
+    throw new Error(`Forbidden or invalid agentName: '${agentName}'`);
+  }
+  let homePath: string;
+  if (sessionId) {
+    const safeSessionId = sessionId.replace(/[^a-zA-Z0-9_\-]/g, "");
+    if (!safeSessionId) {
+      throw new Error(`Invalid or unsafe sessionId: '${sessionId}'`);
     }
-  } catch (err) {
-    // Игнорируем если исходный файл не существует
+    homePath = path.join(AGENT_HOMES_ROOT, "sessions", safeSessionId, safeAgentName);
+  } else {
+    homePath = path.join(AGENT_HOMES_ROOT, safeAgentName);
+  }
+  const resolved = path.resolve(homePath);
+  const resolvedRoot = path.resolve(AGENT_HOMES_ROOT);
+  const relative = path.relative(resolvedRoot, resolved);
+  const isInside = relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  if (!isInside) {
+    throw new Error(`Path traversal detected: agentName '${agentName}' or sessionId '${sessionId}' escapes AGENT_HOMES_ROOT`);
+  }
+  return resolved;
+}
+
+export async function atomicWriteFile(filePath: string, content: string | Buffer): Promise<void> {
+  const dir = path.dirname(filePath);
+  await fs.mkdir(dir, { recursive: true, mode: 0o700 });
+  const tmpPath = path.join(dir, `${path.basename(filePath)}.${randomUUID()}.tmp`);
+  try {
+    const options = typeof content === "string"
+      ? { encoding: "utf-8" as const, mode: 0o600 }
+      : { mode: 0o600 };
+    await fs.writeFile(tmpPath, content, options);
+    await fs.rename(tmpPath, filePath);
+    await fs.chmod(filePath, 0o600);
+  } catch (err: unknown) {
+    await fs.unlink(tmpPath).catch(() => {});
+    throw err;
+  }
+}
+
+export function sanitizeLogMessage(message: string): string {
+  if (typeof message !== "string") return message;
+  
+  return message
+    .replace(/(sk-or-v1-[a-zA-Z0-9]{64})/g, "[REDACTED_OPENROUTER_KEY]")
+    .replace(/(sk-[a-zA-Z0-9]{20,})/g, "[REDACTED_API_KEY]")
+    .replace(/(Authorization:\s*Bearer\s+)[a-zA-Z0-9_\-\.]+/ig, "$1[REDACTED_TOKEN]")
+    .replace(/"(password|token|apiKey|secret)":\s*"[^"]+"/ig, '"$1": "[REDACTED]"');
+}
+
+export async function copyCredentialSafe(src: string, dest: string): Promise<void> {
+  let fd: fs.FileHandle | null = null;
+  try {
+    // Используем O_RDONLY и O_NOFOLLOW для блокирования следования по симлинкам на уровне ядра
+    fd = await fs.open(src, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    const stat = await fd.stat();
+    if (stat.isFile()) {
+      const content = await fd.readFile();
+      await atomicWriteFile(dest, content);
+    }
+  } catch (err: any) {
+    if (err.code === "ENOENT" || err.code === "ELOOP") {
+      // ELOOP означает, что файл является символической ссылкой
+      return;
+    }
+    throw err;
+  } finally {
+    if (fd) {
+      await fd.close().catch(() => {});
+    }
   }
 }
 
@@ -198,6 +291,20 @@ const ROLE_MCP_MAPPING: Record<string, string[]> = {
   data_engineer: ["gitnexus", "repowise", "postgres"],
   general: ["gitnexus", "repowise", "context7"]
 };
+
+function escapeTomlString(val: string): string {
+  return val
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, "\\n")
+    .replace(/\r/g, "\\r")
+    .replace(/\t/g, "\\t")
+    .replace(/\x08/g, "\\b")
+    .replace(/\x0c/g, "\\f")
+    .replace(/[\x00-\x07\x0b\x0e-\x1f]/g, (c) => {
+      return "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0");
+    });
+}
 
 async function setupGrokConfig(agentHome: string, role: string): Promise<void> {
   const GLOBAL_HOME = os.homedir();
@@ -235,45 +342,67 @@ async function setupGrokConfig(agentHome: string, role: string): Promise<void> {
       if (serverConfig) {
         tomlContent += `[mcp_servers.${serverName}]\n`;
         if (serverConfig.command) {
-          tomlContent += `command = "${serverConfig.command}"\n`;
+          tomlContent += `command = "${escapeTomlString(serverConfig.command)}"\n`;
           if (serverConfig.args) {
-            tomlContent += `args = [${serverConfig.args.map((a: string) => `"${a}"`).join(", ")}]\n`;
+            tomlContent += `args = [${serverConfig.args.map((a: string) => `"${escapeTomlString(a)}"`).join(", ")}]\n`;
           }
         } else if (serverConfig.url) {
-          tomlContent += `url = "${serverConfig.url}"\n`;
+          tomlContent += `url = "${escapeTomlString(serverConfig.url)}"\n`;
         }
         tomlContent += `enabled = true\n\n`;
 
         if (serverConfig.headers && Object.keys(serverConfig.headers).length > 0) {
-          tomlContent += `[mcp_servers.${serverName}.headers]\n`;
+          let hasHeaders = false;
+          let headersToml = `[mcp_servers.${serverName}.headers]\n`;
           for (const [hk, hv] of Object.entries(serverConfig.headers)) {
-            tomlContent += `${hk} = "${hv}"\n`;
+            if (/^[a-zA-Z0-9_\-]+$/.test(hk)) {
+              const hkLower = hk.toLowerCase();
+              if (hkLower.includes("key") || hkLower.includes("token") || hkLower.includes("auth") || hkLower.includes("secret") || hkLower.includes("password")) {
+                continue;
+              }
+              headersToml += `${hk} = "${escapeTomlString(String(hv))}"\n`;
+              hasHeaders = true;
+            }
           }
-          tomlContent += `\n`;
+          if (hasHeaders) {
+            tomlContent += headersToml + `\n`;
+          }
         }
 
         if (serverConfig.env && Object.keys(serverConfig.env).length > 0) {
-          tomlContent += `[mcp_servers.${serverName}.env]\n`;
+          let hasEnv = false;
+          let envToml = `[mcp_servers.${serverName}.env]\n`;
           for (const [ek, ev] of Object.entries(serverConfig.env)) {
-            tomlContent += `${ek} = "${ev}"\n`;
+            if (/^[a-zA-Z0-9_\-]+$/.test(ek)) {
+              const ekLower = ek.toLowerCase();
+              if (ekLower.includes("key") || ekLower.includes("token") || ekLower.includes("auth") || ekLower.includes("secret") || ekLower.includes("password")) {
+                continue;
+              }
+              envToml += `${ek} = "${escapeTomlString(String(ev))}"\n`;
+              hasEnv = true;
+            }
           }
-          tomlContent += `\n`;
+          if (hasEnv) {
+            tomlContent += envToml + `\n`;
+          }
         }
       }
     }
 
-    await fs.mkdir(path.dirname(targetGrokConfig), { recursive: true, mode: 0o700 });
-    await fs.writeFile(targetGrokConfig, tomlContent, "utf-8");
-    try {
-      await fs.chmod(targetGrokConfig, 0o600);
-    } catch (e) {}
-  } catch (err: any) {
-    process.stderr.write(`Ошибка настройки config.toml для grok: ${err.message}\n`);
+    await atomicWriteFile(targetGrokConfig, tomlContent);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`Ошибка настройки config.toml для grok: ${msg}\n`);
   }
 }
 
-export async function setupAgentMcpConfig(agentName: string, role: string): Promise<void> {
-  const agentHome = path.join(AGENT_HOMES_ROOT, agentName);
+export async function setupAgentMcpConfig(agentName: string, role: string, sessionId?: string): Promise<void> {
+  const agentHome = getAgentHome(agentName, sessionId);
+  const resolvedHome = path.resolve(agentHome);
+  const resolvedRoot = path.resolve(AGENT_HOMES_ROOT);
+  if (!resolvedHome.startsWith(resolvedRoot)) {
+    throw new Error(`Path traversal detected: agentName '${agentName}' escapes AGENT_HOMES_ROOT`);
+  }
   
   if (agentName === "grok") {
     await setupGrokConfig(agentHome, role);
@@ -312,9 +441,30 @@ export async function setupAgentMcpConfig(agentName: string, role: string): Prom
 
     // 4. Настраиваем разрешенные серверы
     for (const serverName of allowedServers) {
-      // Если сервер есть в глобальном конфиге, копируем его настройки
+      // Если сервер есть в глобальном конфиге, копируем его настройки с очисткой секретов
       if (globalJson.mcpServers && globalJson.mcpServers[serverName]) {
-        agentJson.mcpServers[serverName] = globalJson.mcpServers[serverName];
+        const originalServer = globalJson.mcpServers[serverName];
+        const serverCopy = JSON.parse(JSON.stringify(originalServer));
+        
+        if (serverCopy.headers) {
+          for (const hk of Object.keys(serverCopy.headers)) {
+            const hkLower = hk.toLowerCase();
+            if (hkLower.includes("key") || hkLower.includes("token") || hkLower.includes("auth") || hkLower.includes("secret") || hkLower.includes("password")) {
+              delete serverCopy.headers[hk];
+            }
+          }
+        }
+        
+        if (serverCopy.env) {
+          for (const ek of Object.keys(serverCopy.env)) {
+            const ekLower = ek.toLowerCase();
+            if (ekLower.includes("key") || ekLower.includes("token") || ekLower.includes("auth") || ekLower.includes("secret") || ekLower.includes("password")) {
+              delete serverCopy.env[ek];
+            }
+          }
+        }
+        
+        agentJson.mcpServers[serverName] = serverCopy;
       } else {
         // Дефолтные настройки для некоторых серверов
         if (serverName === "repowise") {
@@ -350,195 +500,273 @@ export async function setupAgentMcpConfig(agentName: string, role: string): Prom
     agentJson.permissions.allow.push(`read_file:${agentSkillsDir}/*`);
 
     // 6. Записываем файл .claude.json в домашнюю папку агента
-    await fs.mkdir(path.dirname(targetClaudeJson), { recursive: true, mode: 0o700 });
-    await fs.writeFile(targetClaudeJson, JSON.stringify(agentJson, null, 2), "utf-8");
-    try {
-      await fs.chmod(targetClaudeJson, 0o600);
-    } catch (e) {}
-  } catch (err: any) {
-    process.stderr.write(`Ошибка настройки MCP для агента ${agentName} (роль: ${role}): ${err.message}\n`);
+    await atomicWriteFile(targetClaudeJson, JSON.stringify(agentJson, null, 2));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`Ошибка настройки MCP для агента ${agentName} (роль: ${role}): ${msg}\n`);
+    throw err;
   }
 }
 
-export async function ensureAgentHomeDirs(): Promise<void> {
+export async function ensureAgentHomeDirs(sessionId?: string): Promise<void> {
   // Создаем общую папку скиллов проекта
   const rootSkillsPath = path.join(SERVER_ROOT, "skills");
   try {
     await fs.mkdir(rootSkillsPath, { recursive: true });
-  } catch (err: any) {
-    process.stderr.write(`Ошибка при создании корневой папки скиллов: ${err.message}\n`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`Ошибка при создании корневой папки скиллов: ${msg}\n`);
   }
 
   // Создаем временную директорию для изолированных HOME-директорий агентов
+  const safeSessionId = sessionId ? sessionId.replace(/[^a-zA-Z0-9_\-]/g, "") : "";
+  const sessionsRoot = sessionId ? path.join(AGENT_HOMES_ROOT, "sessions", safeSessionId) : AGENT_HOMES_ROOT;
+  const resolvedSessionsRoot = path.resolve(sessionsRoot);
+  const resolvedHomesRoot = path.resolve(AGENT_HOMES_ROOT);
+  const relativeSession = path.relative(resolvedHomesRoot, resolvedSessionsRoot);
+  const isInsideSession = relativeSession === "" || (!relativeSession.startsWith("..") && !path.isAbsolute(relativeSession));
+  if (!isInsideSession) {
+    throw new Error(`Path traversal detected in ensureAgentHomeDirs: sessionId escapes AGENT_HOMES_ROOT`);
+  }
+  
+  // Если инициализация глобальная на старте (без sessionId), чистим сессионные каталоги старше 24 часов (GC)
+  if (!sessionId) {
+    const sessionsGlobalDir = path.join(AGENT_HOMES_ROOT, "sessions");
+    try {
+      const items = await fs.readdir(sessionsGlobalDir).catch(() => [] as string[]);
+      const now = Date.now();
+      const maxAgeMs = 24 * 60 * 60 * 1000; // 24 часа
+
+      for (const item of items) {
+        const itemPath = path.join(sessionsGlobalDir, item);
+        try {
+          const stat = await fs.lstat(itemPath);
+          if (stat.isDirectory() && !stat.isSymbolicLink()) {
+            if (now - stat.mtimeMs > maxAgeMs) {
+              await fs.rm(itemPath, { recursive: true, force: true });
+            }
+          }
+        } catch (e) {
+          // Игнорируем ошибки
+        }
+      }
+    } catch (err) {
+      // Игнорируем
+    }
+  }
+
   try {
-    await fs.mkdir(AGENT_HOMES_ROOT, { recursive: true, mode: 0o700 });
-  } catch (err: any) {
-    process.stderr.write(`Ошибка при создании корневой временной папки агентов: ${err.message}\n`);
+    await fs.mkdir(resolvedSessionsRoot, { recursive: true });
+    await fs.chmod(resolvedSessionsRoot, 0o700);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`Ошибка при создании корневой папки агентов: ${msg}\n`);
   }
 
   const agents = ["codex", "claude", "agy", "gemini", "mimo", "grok", "synthesis"];
   for (const agent of agents) {
-    const agentHomePath = path.join(AGENT_HOMES_ROOT, agent);
+    const agentHomePath = getAgentHome(agent, sessionId);
     const agentSkillsPath = path.join(agentHomePath, "skills");
     try {
-      await fs.mkdir(agentHomePath, { recursive: true, mode: 0o700 });
-      await fs.mkdir(agentSkillsPath, { recursive: true, mode: 0o700 });
-    } catch (err: any) {
-      process.stderr.write(`Ошибка при создании папок для ${agent}: ${err.message}\n`);
+      await fs.mkdir(agentHomePath, { recursive: true });
+      await fs.chmod(agentHomePath, 0o700);
+      await fs.mkdir(agentSkillsPath, { recursive: true });
+      await fs.chmod(agentSkillsPath, 0o700);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`Ошибка при создании папок для ${agent}: ${msg}\n`);
     }
   }
 
-  const GLOBAL_HOME = os.homedir();
+  if (sessionId) {
+    const GLOBAL_HOME = os.homedir();
 
-  // Хелпер для копирования исключительно авторизационных токенов Claude
-  const copyClaudeAuth = async (targetHome: string) => {
-    await copyFileSafe(path.join(GLOBAL_HOME, ".claude", ".credentials.json"), path.join(targetHome, ".claude", ".credentials.json"), 0o600);
-    await copyFileSafe(path.join(GLOBAL_HOME, ".claude", ".credentials.current_backup.json"), path.join(targetHome, ".claude", ".credentials.current_backup.json"), 0o600);
-  };
+    // Хелпер для копирования исключительно авторизационных токенов Claude
+    const copyClaudeAuth = async (targetHome: string) => {
+      await copyCredentialSafe(path.join(GLOBAL_HOME, ".claude", ".credentials.json"), path.join(targetHome, ".claude", ".credentials.json"));
+      await copyCredentialSafe(path.join(GLOBAL_HOME, ".claude", ".credentials.current_backup.json"), path.join(targetHome, ".claude", ".credentials.current_backup.json"));
+    };
 
-  // Хелпер для копирования исключительно авторизационных токенов Gemini/Antigravity
-  const copyGeminiAuth = async (targetHome: string) => {
-    await copyFileSafe(path.join(GLOBAL_HOME, ".gemini", "oauth_creds.json"), path.join(targetHome, ".gemini", "oauth_creds.json"), 0o600);
-    await copyFileSafe(path.join(GLOBAL_HOME, ".gemini", "google_accounts.json"), path.join(targetHome, ".gemini", "google_accounts.json"), 0o600);
-    await copyFileSafe(path.join(GLOBAL_HOME, ".gemini", "installation_id"), path.join(targetHome, ".gemini", "installation_id"), 0o600);
-    await copyFileSafe(path.join(GLOBAL_HOME, ".gemini", "antigravity-cli", "antigravity-oauth-token"), path.join(targetHome, ".gemini", "antigravity-cli", "antigravity-oauth-token"), 0o600);
+    // Хелпер для копирования исключительно авторизационных токенов Gemini/Antigravity
+    const copyGeminiAuth = async (targetHome: string) => {
+      await copyCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "oauth_creds.json"), path.join(targetHome, ".gemini", "oauth_creds.json"));
+      await copyCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "google_accounts.json"), path.join(targetHome, ".gemini", "google_accounts.json"));
+      await copyCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "installation_id"), path.join(targetHome, ".gemini", "installation_id"));
+      await copyCredentialSafe(path.join(GLOBAL_HOME, ".gemini", "antigravity-cli", "antigravity-oauth-token"), path.join(targetHome, ".gemini", "antigravity-cli", "antigravity-oauth-token"));
 
-    // Генерируем чистый settings.json с авторизацией oauth-personal и выключенным наследованием
-    const targetSettingsPath = path.join(targetHome, ".gemini", "settings.json");
-    const settingsContent = JSON.stringify({
-      "security": {
-        "auth": {
-          "selectedType": "oauth-personal"
+      // Генерируем чистый settings.json с авторизацией oauth-personal и выключенным наследованием
+      const targetSettingsPath = path.join(targetHome, ".gemini", "settings.json");
+      const settingsContent = JSON.stringify({
+        "security": {
+          "auth": {
+            "selectedType": "oauth-personal"
+          }
+        },
+        "customizationDiscovery": {
+          "agents": {
+            "inheritUser": false,
+            "allowFileDiscovery": false
+          },
+          "skills": {
+            "inheritUser": false,
+            "allowFileDiscovery": false
+          },
+          "mcp": {
+            "inheritUser": false,
+            "allowFileDiscovery": false
+          }
+        },
+        "customizationDiscoveryConfig": {
+          "agents": {
+            "inheritUser": false,
+            "allowFileDiscovery": false
+          },
+          "skills": {
+            "inheritUser": false,
+            "allowFileDiscovery": false
+          },
+          "mcp": {
+            "inheritUser": false,
+            "allowFileDiscovery": false
+          }
         }
-      },
-      "customizationDiscovery": {
-        "agents": {
-          "inheritUser": false,
-          "allowFileDiscovery": false
-        },
-        "skills": {
-          "inheritUser": false,
-          "allowFileDiscovery": false
-        },
-        "mcp": {
-          "inheritUser": false,
-          "allowFileDiscovery": false
-        }
-      },
-      "customizationDiscoveryConfig": {
-        "agents": {
-          "inheritUser": false,
-          "allowFileDiscovery": false
-        },
-        "skills": {
-          "inheritUser": false,
-          "allowFileDiscovery": false
-        },
-        "mcp": {
-          "inheritUser": false,
-          "allowFileDiscovery": false
-        }
+      }, null, 2);
+      try {
+        await atomicWriteFile(targetSettingsPath, settingsContent);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        process.stderr.write(`Ошибка генерации settings.json для ${targetHome}: ${msg}\n`);
+      }
+    };
+
+    // 1. Для codex (чистый минимальный конфиг + авторизация)
+    const codexHome = getAgentHome("codex", sessionId);
+    await copyCredentialSafe(path.join(GLOBAL_HOME, ".codex", "auth.json"), path.join(codexHome, ".codex", "auth.json"));
+    await copyCredentialSafe(path.join(GLOBAL_HOME, ".codex", "installation_id"), path.join(codexHome, ".codex", "installation_id"));
+    await copyClaudeAuth(codexHome);
+    
+    // Генерируем чистый минимальный config.toml для Codex
+    const codexConfigPath = path.join(codexHome, ".codex", "config.toml");
+    const codexConfigContent = `model = "gpt-5.5"\napproval_policy = "on-request"\nsandbox_mode = "workspace-write"\n`;
+    try {
+      await atomicWriteFile(codexConfigPath, codexConfigContent);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`Ошибка генерации config.toml для Codex: ${msg}\n`);
+    }
+
+    // 2. Для claude (только авторизация)
+    const claudeHome = getAgentHome("claude", sessionId);
+    await copyClaudeAuth(claudeHome);
+
+    // 3. Для agy (только авторизация + чистый конфиг модели)
+    const agyHome = getAgentHome("agy", sessionId);
+    await copyGeminiAuth(agyHome);
+    const agyConfigPath = path.join(agyHome, ".config", "antigravity", "config.toml");
+    try {
+      await atomicWriteFile(agyConfigPath, `model = "gemini-3.5-flash"\n`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`Ошибка генерации config.toml для Agy: ${msg}\n`);
+    }
+
+    // 4. Для gemini (только авторизация + чистый конфиг модели)
+    const geminiHome = getAgentHome("gemini", sessionId);
+    await copyGeminiAuth(geminiHome);
+    const geminiConfigPath = path.join(geminiHome, ".config", "antigravity", "config.toml");
+    try {
+      await atomicWriteFile(geminiConfigPath, `model = "gemini-2.5-pro"\n`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`Ошибка генерации config.toml для Gemini: ${msg}\n`);
+    }
+
+    // 5. Для mimo (только авторизация + чистый config.json)
+    const mimoHome = getAgentHome("mimo", sessionId);
+    await copyClaudeAuth(mimoHome);
+    const mimoConfigPath = path.join(mimoHome, ".config", "mimocode", "mimocode.json");
+    const mimoConfigContent = JSON.stringify({
+      "$schema": "https://opencode.ai/config.json",
+      "permission": {
+        "external_directory": "deny",
+        "doom_loop": "deny"
       }
     }, null, 2);
     try {
-      await fs.mkdir(path.dirname(targetSettingsPath), { recursive: true, mode: 0o700 });
-      await fs.writeFile(targetSettingsPath, settingsContent, "utf-8");
-      try {
-        await fs.chmod(targetSettingsPath, 0o600);
-      } catch (e) {}
-    } catch (err: any) {
-      process.stderr.write(`Ошибка генерации settings.json для ${targetHome}: ${err.message}\n`);
+      await atomicWriteFile(mimoConfigPath, mimoConfigContent);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`Ошибка генерации mimocode.json для Mimo: ${msg}\n`);
     }
+
+    // 6. Для grok (только авторизация + чистый config.toml)
+    const copyGrokAuth = async (targetHome: string) => {
+      await copyCredentialSafe(path.join(GLOBAL_HOME, ".grok", "auth.json"), path.join(targetHome, ".grok", "auth.json"));
+      await copyCredentialSafe(path.join(GLOBAL_HOME, ".grok", "agent_id"), path.join(targetHome, ".grok", "agent_id"));
+    };
+    const grokHome = getAgentHome("grok", sessionId);
+    await copyGrokAuth(grokHome);
+    const grokConfigPath = path.join(grokHome, ".grok", "config.toml");
+    const grokConfigContent = `[cli]\ninstaller = "internal"\n\n[models]\ndefault = "grok-composer-2.5-fast"\n`;
+    try {
+      await atomicWriteFile(grokConfigPath, grokConfigContent);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`Ошибка генерации config.toml для Grok: ${msg}\n`);
+    }
+  }
+}
+
+/**
+ * Синхронизирует токены/файлы авторизации агентов из изолированной сессионной директории
+ * обратно в глобальный домашний каталог пользователя (на хост) для предотвращения их потери при обновлении.
+ */
+export async function syncAgentCredentialsBack(sessionId: string): Promise<void> {
+  const GLOBAL_HOME = os.homedir();
+
+  // Хелпер копирования исключительно авторизационных токенов Claude
+  const syncClaudeAuth = async (targetHome: string) => {
+    await copyCredentialSafe(path.join(targetHome, ".claude", ".credentials.json"), path.join(GLOBAL_HOME, ".claude", ".credentials.json"));
+    await copyCredentialSafe(path.join(targetHome, ".claude", ".credentials.current_backup.json"), path.join(GLOBAL_HOME, ".claude", ".credentials.current_backup.json"));
   };
 
-  // 1. Для codex (чистый минимальный конфиг + авторизация)
-  const codexHome = path.join(AGENT_HOMES_ROOT, "codex");
-  await copyFileSafe(path.join(GLOBAL_HOME, ".codex", "auth.json"), path.join(codexHome, ".codex", "auth.json"), 0o600);
-  await copyFileSafe(path.join(GLOBAL_HOME, ".codex", "installation_id"), path.join(codexHome, ".codex", "installation_id"), 0o600);
-  await copyClaudeAuth(codexHome);
-  
-  // Генерируем чистый минимальный config.toml для Codex
-  const codexConfigPath = path.join(codexHome, ".codex", "config.toml");
-  const codexConfigContent = `model = "gpt-5.5"\napproval_policy = "on-request"\nsandbox_mode = "workspace-write"\n`;
-  try {
-    await fs.mkdir(path.dirname(codexConfigPath), { recursive: true, mode: 0o700 });
-    await fs.writeFile(codexConfigPath, codexConfigContent, "utf-8");
-    try {
-      await fs.chmod(codexConfigPath, 0o600);
-    } catch (e) {}
-  } catch (err: any) {
-    process.stderr.write(`Ошибка генерации config.toml для Codex: ${err.message}\n`);
-  }
-
-  // 2. Для claude (только авторизация)
-  const claudeHome = path.join(AGENT_HOMES_ROOT, "claude");
-  await copyClaudeAuth(claudeHome);
-
-  // 3. Для agy (только авторизация + чистый конфиг модели)
-  const agyHome = path.join(AGENT_HOMES_ROOT, "agy");
-  await copyGeminiAuth(agyHome);
-  const agyConfigPath = path.join(agyHome, ".config", "antigravity", "config.toml");
-  try {
-    await fs.mkdir(path.dirname(agyConfigPath), { recursive: true, mode: 0o700 });
-    await fs.writeFile(agyConfigPath, `model = "gemini-3.5-flash"\n`, "utf-8");
-    try {
-      await fs.chmod(agyConfigPath, 0o600);
-    } catch (e) {}
-  } catch (err: any) {
-    process.stderr.write(`Ошибка генерации config.toml для Agy: ${err.message}\n`);
-  }
-
-  // 4. Для gemini (только авторизация + чистый конфиг модели)
-  const geminiHome = path.join(AGENT_HOMES_ROOT, "gemini");
-  await copyGeminiAuth(geminiHome);
-  const geminiConfigPath = path.join(geminiHome, ".config", "antigravity", "config.toml");
-  try {
-    await fs.mkdir(path.dirname(geminiConfigPath), { recursive: true, mode: 0o700 });
-    await fs.writeFile(geminiConfigPath, `model = "gemini-2.5-pro"\n`, "utf-8");
-    try {
-      await fs.chmod(geminiConfigPath, 0o600);
-    } catch (e) {}
-  } catch (err: any) {
-    process.stderr.write(`Ошибка генерации config.toml для Gemini: ${err.message}\n`);
-  }
-
-  // 5. Для mimo (только авторизация + чистый config.json)
-  const mimoHome = path.join(AGENT_HOMES_ROOT, "mimo");
-  await copyClaudeAuth(mimoHome);
-  const mimoConfigPath = path.join(mimoHome, ".config", "mimocode", "mimocode.json");
-  const mimoConfigContent = JSON.stringify({
-    "$schema": "https://opencode.ai/config.json",
-    "permission": {
-      "external_directory": "deny",
-      "doom_loop": "deny"
-    }
-  }, null, 2);
-  try {
-    await fs.mkdir(path.dirname(mimoConfigPath), { recursive: true, mode: 0o700 });
-    await fs.writeFile(mimoConfigPath, mimoConfigContent, "utf-8");
-    try {
-      await fs.chmod(mimoConfigPath, 0o600);
-    } catch (e) {}
-  } catch (err: any) {
-    process.stderr.write(`Ошибка генерации mimocode.json для Mimo: ${err.message}\n`);
-  }
-
-  // 6. Для grok (только авторизация + чистый config.toml)
-  const copyGrokAuth = async (targetHome: string) => {
-    await copyFileSafe(path.join(GLOBAL_HOME, ".grok", "auth.json"), path.join(targetHome, ".grok", "auth.json"), 0o600);
-    await copyFileSafe(path.join(GLOBAL_HOME, ".grok", "agent_id"), path.join(targetHome, ".grok", "agent_id"), 0o600);
+  // Хелпер копирования исключительно авторизационных токенов Gemini/Antigravity
+  const syncGeminiAuth = async (targetHome: string) => {
+    await copyCredentialSafe(path.join(targetHome, ".gemini", "oauth_creds.json"), path.join(GLOBAL_HOME, ".gemini", "oauth_creds.json"));
+    await copyCredentialSafe(path.join(targetHome, ".gemini", "google_accounts.json"), path.join(GLOBAL_HOME, ".gemini", "google_accounts.json"));
+    await copyCredentialSafe(path.join(targetHome, ".gemini", "installation_id"), path.join(GLOBAL_HOME, ".gemini", "installation_id"));
+    await copyCredentialSafe(path.join(targetHome, ".gemini", "antigravity-cli", "antigravity-oauth-token"), path.join(GLOBAL_HOME, ".gemini", "antigravity-cli", "antigravity-oauth-token"));
   };
-  const grokHome = path.join(AGENT_HOMES_ROOT, "grok");
-  await copyGrokAuth(grokHome);
-  const grokConfigPath = path.join(grokHome, ".grok", "config.toml");
-  const grokConfigContent = `[cli]\ninstaller = "internal"\n\n[models]\ndefault = "grok-composer-2.5-fast"\n`;
+
   try {
-    await fs.mkdir(path.dirname(grokConfigPath), { recursive: true, mode: 0o700 });
-    await fs.writeFile(grokConfigPath, grokConfigContent, "utf-8");
-    try {
-      await fs.chmod(grokConfigPath, 0o600);
-    } catch (e) {}
-  } catch (err: any) {
-    process.stderr.write(`Ошибка генерации config.toml для Grok: ${err.message}\n`);
+    // 1. Для codex
+    const codexHome = getAgentHome("codex", sessionId);
+    await copyCredentialSafe(path.join(codexHome, ".codex", "auth.json"), path.join(GLOBAL_HOME, ".codex", "auth.json"));
+    await copyCredentialSafe(path.join(codexHome, ".codex", "installation_id"), path.join(GLOBAL_HOME, ".codex", "installation_id"));
+    await syncClaudeAuth(codexHome);
+
+    // 2. Для claude
+    const claudeHome = getAgentHome("claude", sessionId);
+    await syncClaudeAuth(claudeHome);
+
+    // 3. Для agy
+    const agyHome = getAgentHome("agy", sessionId);
+    await syncGeminiAuth(agyHome);
+
+    // 4. Для gemini
+    const geminiHome = getAgentHome("gemini", sessionId);
+    await syncGeminiAuth(geminiHome);
+
+    // 5. Для mimo
+    const mimoHome = getAgentHome("mimo", sessionId);
+    await syncClaudeAuth(mimoHome);
+
+    // 6. Для grok
+    const grokHome = getAgentHome("grok", sessionId);
+    await copyCredentialSafe(path.join(grokHome, ".grok", "auth.json"), path.join(GLOBAL_HOME, ".grok", "auth.json"));
+    await copyCredentialSafe(path.join(grokHome, ".grok", "agent_id"), path.join(GLOBAL_HOME, ".grok", "agent_id"));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[Config] Ошибка при обратной синхронизации токенов: ${msg}\n`);
   }
 }

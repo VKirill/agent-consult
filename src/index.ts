@@ -4,10 +4,121 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { loadConfig, loadRolePrompt, ensureAgentHomeDirs } from "./config.js";
+import { loadConfig, loadRolePrompt, ensureAgentHomeDirs, LOCAL_AGENTS, sanitizeLogMessage } from "./config.js";
 import { checkOpenRouterLiveness } from "./openrouter-client.js";
-import { runConsultation, activeChildPids } from "./consult-orchestrator.js";
-import { spawn } from "child_process";
+import { runConsultation, activeChildPids, activeSessionDirs } from "./consult-orchestrator.js";
+import { spawn, spawnSync } from "child_process";
+import fsSync from "fs";
+
+// ── Глобальные обработчики ошибок ────────────────────────────────────────
+process.on("unhandledRejection", (reason) => {
+  const cleanReason = sanitizeLogMessage(String(reason));
+  process.stderr.write(`[Agent Consult] Unhandled Rejection: ${cleanReason}\n`);
+});
+
+process.on("uncaughtException", (err) => {
+  const cleanStack = sanitizeLogMessage(err?.stack || String(err));
+  process.stderr.write(`[Agent Consult] Uncaught Exception: ${cleanStack}\n`);
+  cleanupAllChildren();
+  process.exit(1);
+});
+
+// ── Простая реализация Семафора для ограничения параллелизма ──────────────
+export class Semaphore {
+  private active = 0;
+  private queue: { resolve: () => void; reject: (err: Error) => void; timeout?: NodeJS.Timeout }[] = [];
+
+  constructor(
+    private maxConcurrency: number,
+    private maxQueueSize = 20,
+    private queueTimeoutMs = 60000
+  ) {
+    if (!Number.isFinite(maxConcurrency) || maxConcurrency < 1) {
+      throw new Error("maxConcurrency must be a positive integer");
+    }
+    if (!Number.isFinite(maxQueueSize) || maxQueueSize < 0) {
+      throw new Error("maxQueueSize must be a non-negative integer");
+    }
+    if (!Number.isFinite(queueTimeoutMs) || queueTimeoutMs < 0) {
+      throw new Error("queueTimeoutMs must be non-negative");
+    }
+  }
+
+  async acquire(): Promise<void> {
+    if (this.active < 0 || this.active > this.maxConcurrency) {
+      throw new Error(`Нарушение инварианта Semaphore: active count (${this.active}) вне диапазона [0, ${this.maxConcurrency}]`);
+    }
+
+    if (this.active < this.maxConcurrency) {
+      this.active++;
+      return;
+    }
+
+    if (this.queue.length >= this.maxQueueSize) {
+      throw new Error(`Очередь семафора переполнена: превышен лимит в ${this.maxQueueSize} запросов.`);
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const queueItem: { resolve: () => void; reject: (err: Error) => void; timeout?: NodeJS.Timeout } = {
+        resolve,
+        reject
+      };
+
+      const timeout = setTimeout(() => {
+        const index = this.queue.indexOf(queueItem);
+        if (index !== -1) {
+          this.queue.splice(index, 1);
+          reject(new Error(`Превышен таймаут ожидания в очереди семафора (${this.queueTimeoutMs} мс).`));
+        }
+      }, this.queueTimeoutMs);
+
+      queueItem.timeout = timeout;
+      this.queue.push(queueItem);
+    });
+  }
+
+  release(): void {
+    if (this.active <= 0) {
+      throw new Error(`Нарушение инварианта Semaphore: попытка вызвать release при active count = ${this.active}`);
+    }
+
+    this.active--;
+
+    const next = this.queue.shift();
+    if (next) {
+      if (next.timeout) {
+        clearTimeout(next.timeout);
+      }
+      this.active++;
+      next.resolve();
+    }
+  }
+
+  getActiveCount(): number {
+    return this.active;
+  }
+
+  getQueueLength(): number {
+    return this.queue.length;
+  }
+
+  updateLimits(maxConcurrency: number, maxQueueSize: number, queueTimeoutMs: number): void {
+    if (!Number.isFinite(maxConcurrency) || maxConcurrency < 1) {
+      throw new Error("maxConcurrency must be a positive integer");
+    }
+    if (!Number.isFinite(maxQueueSize) || maxQueueSize < 0) {
+      throw new Error("maxQueueSize must be a non-negative integer");
+    }
+    if (!Number.isFinite(queueTimeoutMs) || queueTimeoutMs < 0) {
+      throw new Error("queueTimeoutMs must be non-negative");
+    }
+    this.maxConcurrency = maxConcurrency;
+    this.maxQueueSize = maxQueueSize;
+    this.queueTimeoutMs = queueTimeoutMs;
+  }
+}
+
+const consultSemaphore = new Semaphore(3, 20, 60000);
 
 // Создаем инстанс сервера
 const server = new Server(
@@ -220,6 +331,43 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     let targetAgentsList = args?.agents as string[] | undefined;
     let autoSkipSynthesis = !!(args?.request_raw_responses || args?.skip_synthesis);
 
+    if (args?.role !== undefined && (typeof args.role !== "string" || !/^[a-z0-9_]{1,64}$/.test(args.role))) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: "Ошибка: Аргумент 'role' должен быть валидной строкой из строчных латинских букв, цифр и символов подчеркивания длиной до 64 символов." }]
+      };
+    }
+
+    if (targetAgentsList !== undefined) {
+      if (!Array.isArray(targetAgentsList) || targetAgentsList.some(agent => typeof agent !== "string" || !/^[a-zA-Z0-9_\-\.]{1,64}$/.test(agent))) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: "Ошибка: Аргумент 'agents' должен быть массивом валидных имен агентов (строк от 1 до 64 символов)." }]
+        };
+      }
+    }
+
+    if (typeof question !== "string" || question.trim() === "") {
+      return {
+        isError: true,
+        content: [{ type: "text", text: "Ошибка: аргумент 'question' должен быть непустой строкой." }]
+      };
+    }
+
+    // Защита от Prompt Injection и Resource Exhaustion
+    if (question.length > 100000) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: "Ошибка: Аргумент 'question' превышает лимит 100000 символов." }]
+      };
+    }
+    if (customRolePrompt && customRolePrompt.length > 4000) {
+      return {
+        isError: true,
+        content: [{ type: "text", text: "Ошибка: Аргумент 'custom_role_prompt' превышает лимит 4000 символов." }]
+      };
+    }
+
     if (!targetAgentsList) {
       if (role === "security_auditor") {
         targetAgentsList = ["codex"];
@@ -231,18 +379,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       autoSkipSynthesis = true;
     }
 
-    if (typeof question !== "string" || question.trim() === "") {
-      return {
-        isError: true,
-        content: [{ type: "text", text: "Ошибка: аргумент 'question' должен быть непустой строкой." }]
-      };
-    }
-
     const config = await loadConfig();
 
     const needsOpenRouter = !autoSkipSynthesis || targetAgentsList.some(agentName => {
-      const localAgents = ["codex", "claude", "agy", "gemini", "mimo", "grok"];
-      return !localAgents.includes(agentName);
+      return !LOCAL_AGENTS.includes(agentName);
     });
 
     if (needsOpenRouter && (!config.openrouter_api_key || config.openrouter_api_key.includes("YOUR_"))) {
@@ -255,46 +395,84 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
-    const result = await runConsultation({
-      question,
-      role,
-      customRolePrompt,
-      agentsList: targetAgentsList,
-      skipSynthesis: autoSkipSynthesis,
-      config
-    });
-
-    if (!result.success) {
-      return {
-        isError: true,
-        content: [{ type: "text", text: result.outputMarkdown }]
-      };
+    if (config.concurrency) {
+      consultSemaphore.updateLimits(
+        config.concurrency.maxConcurrency ?? 3,
+        config.concurrency.maxQueueSize ?? 20,
+        config.concurrency.queueTimeoutMs ?? 180000
+      );
     }
 
-    return {
-      content: [{ type: "text", text: result.outputMarkdown }]
-    };
+    await consultSemaphore.acquire();
+    try {
+      const result = await runConsultation({
+        question,
+        role,
+        customRolePrompt,
+        agentsList: targetAgentsList,
+        skipSynthesis: autoSkipSynthesis,
+        config
+      });
+
+      if (!result.success) {
+        return {
+          isError: true,
+          content: [{ type: "text", text: result.outputMarkdown }]
+        };
+      }
+
+      return {
+        content: [{ type: "text", text: result.outputMarkdown }]
+      };
+    } finally {
+      consultSemaphore.release();
+    }
   }
 
   throw new Error(`Неизвестный инструмент: ${name}`);
 });
 
-// ── Функция очистки дочерних процессов при выходе ──────────────────────
+// ── Функция очистки дочерних процессов и сессионных директорий при выходе ──
 function cleanupAllChildren() {
   if (activeChildPids.size > 0) {
     process.stderr.write(`[Agent Consult] Завершение работы. Принудительно завершаем ${activeChildPids.size} дочерних процессов...\n`);
     for (const pid of activeChildPids) {
       try {
         if (process.platform === "win32") {
-          spawn("taskkill", ["/pid", pid.toString(), "/f", "/t"]);
-        } else {
-          process.kill(-pid, "SIGKILL");
+          spawnSync("C:\\Windows\\System32\\taskkill.exe", ["/pid", pid.toString(), "/f", "/t"]);
+        } else if (pid > 0) {
+          try {
+            process.kill(-pid, "SIGKILL");
+          } catch (err: any) {
+            if (err.code === "ESRCH") {
+              process.kill(pid, "SIGKILL");
+            } else {
+              throw err;
+            }
+          }
         }
       } catch (err) {
         // Игнорируем
       }
     }
     activeChildPids.clear();
+  }
+
+  if (activeSessionDirs.size > 0) {
+    process.stderr.write(`[Agent Consult] Завершение работы. Принудительно очищаем ${activeSessionDirs.size} активных сессионных папок...\n`);
+    for (const dir of activeSessionDirs) {
+      try {
+        const stat = fsSync.lstatSync(dir);
+        if (stat.isSymbolicLink()) {
+          fsSync.unlinkSync(dir);
+        } else {
+          fsSync.rmSync(dir, { recursive: true, force: true });
+        }
+      } catch (err) {
+        // Игнорируем
+      }
+    }
+    activeSessionDirs.clear();
   }
 }
 
@@ -315,6 +493,8 @@ process.on("SIGHUP", () => {
 
 // ── Подключение транспорта и старт сервера ──────────────────────────────
 async function main() {
+  // Устанавливаем строгий umask для создаваемых файлов и папок (rw------- / rwx------)
+  process.umask(0o077);
   await ensureAgentHomeDirs();
   const transport = new StdioServerTransport();
   await server.connect(transport);

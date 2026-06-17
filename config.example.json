@@ -4,6 +4,11 @@
   "openrouter_title": "Agent Consult MCP Server",
   "timeout_ms": 120000,
   "retry_attempts": 2,
+  "concurrency": {
+    "maxConcurrency": 3,
+    "maxQueueSize": 20,
+    "queueTimeoutMs": 180000
+  },
   "agents": {
     "codex": {
       "model": "openai/gpt-5.5",

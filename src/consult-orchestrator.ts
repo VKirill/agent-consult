@@ -1,9 +1,9 @@
-import { AppConfig, AgentConfig, loadConfig, loadRolePrompt, loadPersonalityPrompt, WORKSPACE_ROOT, SERVER_ROOT, AGENT_HOMES_ROOT, setupAgentMcpConfig, ensureAgentHomeDirs } from "./config.js";
+import { AppConfig, AgentConfig, loadConfig, loadRolePrompt, loadPersonalityPrompt, WORKSPACE_ROOT, SERVER_ROOT, AGENT_HOMES_ROOT, setupAgentMcpConfig, ensureAgentHomeDirs, getAgentHome, LOCAL_AGENTS, syncAgentCredentialsBack, sanitizeLogMessage } from "./config.js";
 import { queryOpenRouter, AgentResponse } from "./openrouter-client.js";
 import fs from "fs/promises";
-import { existsSync } from "fs";
+import fsSync, { existsSync } from "fs";
 import path from "path";
-import { spawn } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import os from "os";
 import { randomUUID } from "crypto";
 
@@ -14,6 +14,7 @@ export interface CharacterPersonality {
 }
 
 export const activeChildPids = new Set<number>();
+export const activeSessionDirs = new Set<string>();
 
 export const PERSONALITIES: CharacterPersonality[] = [
   {
@@ -63,7 +64,7 @@ export interface ConsultationResult {
   totalDurationMs: number;
 }
 
-function cleanCLIOutput(output: string): string {
+export function cleanCLIOutput(output: string): string {
   let lines = output.split("\n");
   lines = lines.filter(line => {
     const trimmed = line.trim();
@@ -89,20 +90,20 @@ function cleanCLIOutput(output: string): string {
   return lines.join("\n").trim();
 }
 
-function stripAnsi(str: string): string {
+export function stripAnsi(str: string): string {
   return str.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
 }
 
-async function detectAndReadSessionArtifacts(agentName: string, startTime: number): Promise<string> {
+async function detectAndReadSessionArtifacts(agentName: string, startTime: number, sessionId?: string): Promise<string> {
   // Артефакты создаются только для агентов, использующих Antigravity CLI (agy / gemini)
   if (agentName !== "agy" && agentName !== "gemini") {
     return "";
   }
 
-  const brainDir = path.join(AGENT_HOMES_ROOT, agentName, ".gemini", "antigravity-cli", "brain");
+  const brainDir = path.join(getAgentHome(agentName, sessionId), ".gemini", "antigravity-cli", "brain");
   try {
-    const stat = await fs.stat(brainDir);
-    if (!stat.isDirectory()) return "";
+    const stat = await fs.lstat(brainDir);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) return "";
   } catch (e) {
     return ""; // Директория не существует
   }
@@ -115,8 +116,8 @@ async function detectAndReadSessionArtifacts(agentName: string, startTime: numbe
     for (const dir of dirs) {
       const fullPath = path.join(brainDir, dir);
       try {
-        const dirStat = await fs.stat(fullPath);
-        if (dirStat.isDirectory() && dirStat.mtimeMs > newestTime) {
+        const dirStat = await fs.lstat(fullPath);
+        if (!dirStat.isSymbolicLink() && dirStat.isDirectory() && dirStat.mtimeMs > newestTime) {
           newestTime = dirStat.mtimeMs;
           newestDir = fullPath;
         }
@@ -138,8 +139,13 @@ async function detectAndReadSessionArtifacts(agentName: string, startTime: numbe
 
         const filePath = path.join(newestDir, file);
         try {
-          const fileStat = await fs.stat(filePath);
-          if (fileStat.isFile()) {
+          const fileStat = await fs.lstat(filePath);
+          if (!fileStat.isSymbolicLink() && fileStat.isFile()) {
+            // Защита от OOM при чтении бинарных или гигантских файлов (>100KB)
+            if (fileStat.size > 100 * 1024) {
+              process.stderr.write(`[Orchestrator] Пропущен файл артефакта ${file} из-за превышения лимита размера (size: ${fileStat.size} bytes)\n`);
+              continue;
+            }
             const content = await fs.readFile(filePath, "utf-8");
             artifactContent += `\n\n### 📄 Сгенерированный артефакт: ${file}\n\n${content}\n`;
           }
@@ -162,260 +168,338 @@ async function queryLocalCLI(
   agentConfig: AgentConfig,
   systemPrompt: string,
   question: string,
-  timeoutMs: number
+  timeoutMs: number,
+  sessionId?: string
 ): Promise<string> {
   const userHome = os.homedir();
   let tempPromptFile = "";
 
+  const model = agentConfig.model;
+  const cleanModel = model.replace(/^(openai|anthropic|google|xiaomi|xai)\//, "");
+  if (cleanModel && !/^[a-zA-Z0-9][a-zA-Z0-9_\-\.]{0,63}$/.test(cleanModel)) {
+    throw new Error(`Критическая уязвимость: Некорректное имя модели '${cleanModel}'`);
+  }
+
   if (agentName === "grok") {
-    const tempDir = os.tmpdir();
-    tempPromptFile = path.join(tempDir, `grok_prompt_${randomUUID()}.txt`);
+    const grokHome = getAgentHome("grok", sessionId);
+    tempPromptFile = path.join(grokHome, ".grok", `grok_prompt_${randomUUID()}.txt`);
+    const dir = path.dirname(tempPromptFile);
+    await fs.mkdir(dir, { recursive: true });
     const fullPrompt = `${systemPrompt}\n\nВОПРОС:\n${question}`;
     // Создаем файл с правами 0o600 для защиты от чтения другими пользователями
     await fs.writeFile(tempPromptFile, fullPrompt, { encoding: "utf-8", mode: 0o600 });
   }
 
-  return new Promise((resolve, reject) => {
-    let binPath = "";
-    let args: string[] = [];
-    const model = agentConfig.model;
+  try {
+    return await new Promise<string>((resolve, reject) => {
+      let binPath = "";
+      let args: string[] = [];
 
-    const cleanModel = model.replace(/^(openai|anthropic|google|xiaomi|xai)\//, "");
-    let defaultBinPath = "";
-    let globalBinName = "";
+      let defaultBinPath = "";
+      let globalBinName = "";
 
-    const cleanupTempFile = async () => {
-      if (tempPromptFile) {
-        try {
-          await fs.unlink(tempPromptFile);
-        } catch (e) {
-          // Игнорируем
-        }
-      }
-    };
-
-    switch (agentName) {
-      case "codex":
-        defaultBinPath = path.join(userHome, ".npm-global", "bin", "codex");
-        globalBinName = "codex";
-        args = ["exec", "-", "--model", cleanModel];
-        if (agentConfig.reasoning?.enable) {
-          const effort = agentConfig.reasoning.reasoning_effort || "medium";
-          args.push("-c", `model_reasoning_effort=${effort}`);
-        }
-        break;
-      case "claude":
-        defaultBinPath = path.join(userHome, ".local", "bin", "claude");
-        globalBinName = "claude";
-        const modelArg = (cleanModel === "sonnet" || cleanModel === "opus" || cleanModel === "haiku") ? cleanModel : "sonnet";
-        args = ["-p", "--model", modelArg, "--output-format", "stream-json", "--verbose", "--permission-mode", "plan"];
-        break;
-      case "agy":
-        defaultBinPath = path.join(userHome, ".local", "bin", "agy");
-        globalBinName = "agy";
-        args = ["-p", "-"];
-        break;
-      case "gemini":
-        defaultBinPath = path.join(userHome, ".local", "bin", "agy");
-        globalBinName = "agy";
-        args = ["-p", "-"];
-        break;
-      case "mimo":
-        defaultBinPath = path.join(userHome, ".mimocode", "bin", "mimo");
-        globalBinName = "mimo";
-        args = ["run", "--pure"];
-        break;
-      case "grok":
-        defaultBinPath = path.join(userHome, ".local", "bin", "grok");
-        globalBinName = "grok";
-        args = [
-          "--no-memory",
-          "--permission-mode", "plan",
-          "--prompt-file", tempPromptFile
-        ];
-        if (cleanModel && cleanModel !== "grok") {
-          args.push("--model", cleanModel);
-        }
-        break;
-      default:
-        cleanupTempFile().then(() => {
-          reject(new Error(`Неизвестный локальный агент: ${agentName}`));
-        });
-        return;
-    }
-
-    binPath = existsSync(defaultBinPath) ? defaultBinPath : globalBinName;
-
-    const agentHome = path.join(AGENT_HOMES_ROOT, agentName);
-
-    const isWindows = process.platform === "win32";
-    
-    // Безопасное отфильтрованное окружение дочернего процесса (PoLP)
-    const childEnv: Record<string, string> = {
-      HOME: agentHome,
-      PATH: process.env.PATH || "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-      LANG: process.env.LANG || "en_US.UTF-8",
-      TERM: "dumb",
-      NO_COLOR: "1",
-      FORCE_COLOR: "0",
-      GEMINI_CLI_TRUST_WORKSPACE: "true",
-      GEMINI_CLI_NO_RELAUNCH: "1",
-      PAGER: "cat"
-    };
-
-    const child = spawn(binPath, args, {
-      cwd: WORKSPACE_ROOT,
-      detached: !isWindows,
-      env: childEnv
-    });
-
-    if (child.pid) {
-      activeChildPids.add(child.pid);
-    }
-
-    const cleanupPid = () => {
-      if (child.pid) {
-        activeChildPids.delete(child.pid);
-      }
-    };
-
-    const stdoutChunks: Buffer[] = [];
-    const stderrChunks: Buffer[] = [];
-    let isSettled = false;
-    const startTime = Date.now();
-    let currentTimeoutMs = timeoutMs;
-    let lastLogTime = 0;
-    let timer: NodeJS.Timeout;
-    let killEscalationTimer: NodeJS.Timeout | undefined;
-
-    const killProcessGroup = (signal: "SIGTERM" | "SIGKILL" = "SIGTERM") => {
-      if (child.pid) {
-        try {
-          if (isWindows) {
-            spawn("taskkill", ["/pid", child.pid.toString(), "/f", "/t"]);
-          } else {
-            process.kill(-child.pid, signal);
-          }
-        } catch (killErr) {
-          // Игнорируем
-        }
-      }
-    };
-
-    const clearAllTimers = () => {
-      if (timer) clearTimeout(timer);
-      if (killEscalationTimer) clearTimeout(killEscalationTimer);
-    };
-
-    const resetOrExtendTimeout = (reason: string) => {
-      if (isSettled) return;
-      const now = Date.now();
-      const elapsed = now - startTime;
-      const originalRemaining = currentTimeoutMs - elapsed;
-
-      if (originalRemaining < 45000) {
-        const newRemaining = 45000;
-        currentTimeoutMs = elapsed + newRemaining;
-        const MAX_TIMEOUT = 900000; 
-        if (currentTimeoutMs > MAX_TIMEOUT) {
-          currentTimeoutMs = MAX_TIMEOUT;
-        }
-        const updatedRemaining = currentTimeoutMs - elapsed;
-
-        clearAllTimers();
-        timer = setTimeout(() => {
-          if (isSettled) return;
-          isSettled = true;
-          cleanupPid();
-          killProcessGroup("SIGTERM");
-          killEscalationTimer = setTimeout(() => {
-            killProcessGroup("SIGKILL");
-          }, 3000);
-          cleanupTempFile().then(() => {
-            reject(new Error(`Превышен таймаут ожидания ответа от локального CLI ${agentName} (прошло ${Math.round(elapsed / 1000)} сек, лимит составил ${Math.round(currentTimeoutMs / 1000)} сек)`));
-          });
-        }, updatedRemaining);
-
-        if (now - lastLogTime > 15000) {
-          lastLogTime = now;
-          process.stderr.write(`[Агент: ${agentName.toUpperCase()}] Обнаружена активность (${reason}). Продлеваем таймаут: осталось ${Math.round(updatedRemaining / 1000)} сек.\n`);
-        }
-      }
-    };
-
-    timer = setTimeout(() => {
-      if (isSettled) return;
-      isSettled = true;
-      cleanupPid();
-      clearAllTimers();
-      killProcessGroup("SIGTERM");
-      killEscalationTimer = setTimeout(() => {
-        killProcessGroup("SIGKILL");
-      }, 3000);
-      cleanupTempFile().then(() => {
-        reject(new Error(`Превышен таймаут ожидания ответа от локального CLI ${agentName} (${timeoutMs} мс)`));
-      });
-    }, timeoutMs);
-
-    let stdoutBuffer = "";
-    let finalResult = "";
-
-    child.stdout.on("data", (chunk: Buffer) => {
-      resetOrExtendTimeout("stdout");
-      if (agentName === "claude") {
-        stdoutBuffer += chunk.toString();
-        const lines = stdoutBuffer.split("\n");
-        stdoutBuffer = lines.pop() ?? "";
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
+      const cleanupTempFileSync = () => {
+        if (tempPromptFile) {
           try {
-            const ev = JSON.parse(trimmed);
-            if (ev.type === "tool_use") {
-              process.stderr.write(`[Агент: CLAUDE] Вызов инструмента: ${ev.name} (аргументы: ${JSON.stringify(ev.input)})\n`);
-            } else if (ev.type === "tool_result") {
-              process.stderr.write(`[Агент: CLAUDE] Инструмент ${ev.tool_name || ""} вернул результат.\n`);
-            } else if (ev.type === "result") {
-              finalResult = ev.result ?? "";
-            } else if (ev.type === "error") {
-              process.stderr.write(`[Агент: CLAUDE] Ошибка: ${ev.message}\n`);
+            if (fsSync.existsSync(tempPromptFile)) {
+              fsSync.unlinkSync(tempPromptFile);
             }
           } catch (e) {
-            // Игнорируем не-JSON строки
+            // Игнорируем
           }
         }
-      } else {
-        stdoutChunks.push(chunk);
-      }
-    });
+      };
 
-    let stderrLineBuffer = "";
-    child.stderr.on("data", (chunk: Buffer) => {
-      resetOrExtendTimeout("stderr");
-      stderrChunks.push(chunk);
-      
-      const chunkStr = chunk.toString();
-      stderrLineBuffer += chunkStr;
-      const lines = stderrLineBuffer.split("\n");
-      stderrLineBuffer = lines.pop() || "";
-      
-      for (const line of lines) {
-        const cleanLine = stripAnsi(line).trim();
-        if (!cleanLine) continue;
-        
-        if (cleanLine.includes("ExperimentalWarning:") || cleanLine.includes("DeprecationWarning:")) continue;
-        if (/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\-|\/\\]+$/.test(cleanLine)) continue;
-        
-        process.stderr.write(`[Агент: ${agentName.toUpperCase()}] ${cleanLine}\n`);
+      try {
+        const binInfo = resolveAgentBinInfo(agentName);
+        defaultBinPath = binInfo.defaultBinPath;
+        globalBinName = binInfo.globalBinName;
+      } catch (e) {
+        cleanupTempFileSync();
+        reject(new Error(`Неизвестный локальный агент: ${agentName}`));
+        return;
       }
-    });
 
-    child.on("close", (code) => {
-      cleanupPid();
-      if (isSettled) return;
-      isSettled = true;
-      clearAllTimers();
-      cleanupTempFile().then(async () => {
+      switch (agentName) {
+        case "codex":
+          args = ["exec", "-", "--model", cleanModel];
+          if (agentConfig.reasoning?.enable) {
+            const effort = agentConfig.reasoning.reasoning_effort || "medium";
+            args.push("-c", `model_reasoning_effort=${effort}`);
+          }
+          break;
+        case "claude":
+          const modelArg = (cleanModel === "sonnet" || cleanModel === "opus" || cleanModel === "haiku") ? cleanModel : "sonnet";
+          args = ["-p", "--model", modelArg, "--output-format", "stream-json", "--verbose", "--permission-mode", "plan"];
+          break;
+        case "agy":
+        case "gemini":
+          args = ["-p", "-"];
+          break;
+        case "mimo":
+          args = ["run", "--pure"];
+          break;
+        case "grok":
+          args = [
+            "--no-memory",
+            "--permission-mode", "plan",
+            "--prompt-file", tempPromptFile
+          ];
+          if (cleanModel && cleanModel !== "grok") {
+            args.push("--model", cleanModel);
+          }
+          break;
+      }
+
+      binPath = existsSync(defaultBinPath) ? defaultBinPath : globalBinName;
+
+      const agentHome = getAgentHome(agentName, sessionId);
+      const isWindows = process.platform === "win32";
+      
+      // Очищаем PATH от относительных путей для предотвращения DLL/Binary hijacking
+      const rawPath = process.env.PATH || "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+      const cleanPath = rawPath
+        .split(path.delimiter)
+        .filter(p => p && path.isAbsolute(p) && !p.split(path.sep).includes("..") && !p.split(path.sep).includes("."))
+        .join(path.delimiter);
+
+      // Безопасное отфильтрованное окружение дочернего процесса (PoLP)
+      const childEnv: Record<string, string> = {
+        HOME: agentHome,
+        PATH: cleanPath,
+        LANG: process.env.LANG || "en_US.UTF-8",
+        TERM: "dumb",
+        NO_COLOR: "1",
+        FORCE_COLOR: "0",
+        GEMINI_CLI_TRUST_WORKSPACE: "false",
+        GEMINI_CLI_NO_RELAUNCH: "1",
+        PAGER: "cat"
+      };
+
+      const child = spawn(binPath, args, {
+        cwd: WORKSPACE_ROOT,
+        detached: !isWindows,
+        env: childEnv
+      });
+
+      if (child.pid) {
+        activeChildPids.add(child.pid);
+      }
+
+      const cleanupPid = () => {
+        if (child.pid) {
+          activeChildPids.delete(child.pid);
+        }
+      };
+
+      const stdoutChunks: Buffer[] = [];
+      const stderrChunks: Buffer[] = [];
+      let totalStdoutBytes = 0;
+      let totalStderrBytes = 0;
+      let isSettled = false;
+      const startTime = Date.now();
+      const ABSOLUTE_MAX_TIMEOUT = 300000; // 5 минут жесткий таймаут
+      const absoluteDeadline = startTime + ABSOLUTE_MAX_TIMEOUT;
+      let currentTimeoutMs = timeoutMs;
+      let lastLogTime = 0;
+      let timer: NodeJS.Timeout;
+      let killEscalationTimer: NodeJS.Timeout | undefined;
+
+      const killProcessGroup = (signal: "SIGTERM" | "SIGKILL" = "SIGTERM") => {
+        if (child.pid && child.pid > 0) {
+          try {
+            if (isWindows) {
+              spawnSync("C:\\Windows\\System32\\taskkill.exe", ["/pid", child.pid.toString(), "/f", "/t"]);
+            } else {
+              try {
+                process.kill(-child.pid, signal);
+              } catch (err: any) {
+                if (err.code === "ESRCH") {
+                  process.kill(child.pid, signal);
+                } else {
+                  throw err;
+                }
+              }
+            }
+          } catch (killErr) {
+            // Игнорируем
+          }
+        }
+      };
+
+      const clearAllTimers = () => {
+        if (timer) clearTimeout(timer);
+        if (killEscalationTimer) clearTimeout(killEscalationTimer);
+      };
+
+      const resetOrExtendTimeout = (reason: string) => {
+        if (isSettled) return;
+        const now = Date.now();
+        
+        if (now > absoluteDeadline) {
+          return;
+        }
+
+        const elapsed = now - startTime;
+        const originalRemaining = currentTimeoutMs - elapsed;
+
+        if (originalRemaining < 45000) {
+          const newRemaining = 45000;
+          currentTimeoutMs = elapsed + newRemaining;
+          
+          const remainingToDeadline = absoluteDeadline - now;
+          if (currentTimeoutMs - elapsed > remainingToDeadline) {
+            currentTimeoutMs = elapsed + remainingToDeadline;
+          }
+
+          const updatedRemaining = currentTimeoutMs - elapsed;
+          if (updatedRemaining <= 0) return;
+
+          clearAllTimers();
+          timer = setTimeout(() => {
+            if (isSettled) return;
+            isSettled = true;
+            cleanupPid();
+            killProcessGroup("SIGTERM");
+            killEscalationTimer = setTimeout(() => {
+              killProcessGroup("SIGKILL");
+            }, 3000);
+            cleanupTempFileSync();
+            reject(new Error(`Превышен абсолютный таймаут ожидания ответа от локального CLI ${agentName} (${ABSOLUTE_MAX_TIMEOUT / 1000} сек)`));
+          }, updatedRemaining);
+
+          if (now - lastLogTime > 15000) {
+            lastLogTime = now;
+            process.stderr.write(`[Агент: ${agentName.toUpperCase()}] Обнаружена активность (${reason}). Продлеваем таймаут: осталось ${Math.round(updatedRemaining / 1000)} сек.\n`);
+          }
+        }
+      };
+
+      timer = setTimeout(() => {
+        if (isSettled) return;
+        isSettled = true;
+        cleanupPid();
+        clearAllTimers();
+        killProcessGroup("SIGTERM");
+        killEscalationTimer = setTimeout(() => {
+          killProcessGroup("SIGKILL");
+        }, 3000);
+        cleanupTempFileSync();
+        reject(new Error(`Превышен таймаут ожидания ответа от локального CLI ${agentName} (${timeoutMs} мс)`));
+      }, timeoutMs);
+
+      let stdoutBuffer = "";
+      let finalResult = "";
+
+      const checkForInteractiveAuth = (chunk: Buffer): boolean => {
+        const outputToCheck = chunk.toString();
+        if (
+          outputToCheck.includes("To sign in, open this URL") ||
+          outputToCheck.includes("Confirm this code") ||
+          outputToCheck.includes("Waiting for authorization") ||
+          outputToCheck.includes("oauth2/device")
+        ) {
+          if (!isSettled) {
+            isSettled = true;
+            cleanupPid();
+            clearAllTimers();
+            killProcessGroup("SIGKILL");
+            cleanupTempFileSync();
+            reject(new Error(`Локальный CLI ${agentName} не авторизован (требуется интерактивный вход). Опрос прерван.`));
+          }
+          return true;
+        }
+        return false;
+      };
+
+      child.stdout.on("data", (chunk: Buffer) => {
+        if (checkForInteractiveAuth(chunk)) return;
+        resetOrExtendTimeout("stdout");
+        
+        totalStdoutBytes += chunk.length;
+        if (totalStdoutBytes > 10 * 1024 * 1024) { // 10 MB limit
+          cleanupPid();
+          if (!isSettled) {
+            isSettled = true;
+            clearAllTimers();
+            killProcessGroup("SIGKILL");
+            cleanupTempFileSync();
+            reject(new Error(`Превышен лимит вывода (stdout) для локального CLI ${agentName} (10 MB)`));
+          }
+          return;
+        }
+
+        if (agentName === "claude") {
+          stdoutBuffer += chunk.toString();
+          const lines = stdoutBuffer.split("\n");
+          stdoutBuffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const ev = JSON.parse(trimmed);
+              if (ev.type === "tool_use") {
+                process.stderr.write(sanitizeLogMessage(`[Агент: CLAUDE] Вызов инструмента: ${ev.name} (аргументы: ${JSON.stringify(ev.input)})\n`));
+              } else if (ev.type === "tool_result") {
+                process.stderr.write(`[Агент: CLAUDE] Инструмент ${ev.tool_name || ""} вернул результат.\n`);
+              } else if (ev.type === "result") {
+                finalResult = ev.result ?? "";
+              } else if (ev.type === "error") {
+                process.stderr.write(`[Агент: CLAUDE] Ошибка: ${ev.message}\n`);
+              }
+            } catch (e) {
+              // Игнорируем не-JSON строки
+            }
+          }
+        } else {
+          stdoutChunks.push(chunk);
+        }
+      });
+
+      let stderrLineBuffer = "";
+      child.stderr.on("data", (chunk: Buffer) => {
+        if (checkForInteractiveAuth(chunk)) return;
+        resetOrExtendTimeout("stderr");
+
+        totalStderrBytes += chunk.length;
+        if (totalStderrBytes > 10 * 1024 * 1024) { // 10 MB limit
+          cleanupPid();
+          if (!isSettled) {
+            isSettled = true;
+            clearAllTimers();
+            killProcessGroup("SIGKILL");
+            cleanupTempFileSync();
+            reject(new Error(`Превышен лимит ошибок (stderr) для локального CLI ${agentName} (10 MB)`));
+          }
+          return;
+        }
+
+        stderrChunks.push(chunk);
+        
+        const chunkStr = chunk.toString();
+        stderrLineBuffer += chunkStr;
+        const lines = stderrLineBuffer.split("\n");
+        stderrLineBuffer = lines.pop() || "";
+        
+        for (const line of lines) {
+          const cleanLine = stripAnsi(line).trim();
+          if (!cleanLine) continue;
+          
+          if (cleanLine.includes("ExperimentalWarning:") || cleanLine.includes("DeprecationWarning:")) continue;
+          if (/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\-|\/\\]+$/.test(cleanLine)) continue;
+          
+          process.stderr.write(`[Агент: ${agentName.toUpperCase()}] ${cleanLine}\n`);
+        }
+      });
+
+      child.on("close", (code) => {
+        cleanupPid();
+        if (isSettled) return;
+        isSettled = true;
+        clearAllTimers();
+        
+        cleanupTempFileSync();
+
         // Выводим остаток stderrLineBuffer, если он остался
         if (stderrLineBuffer.trim()) {
           const cleanLine = stripAnsi(stderrLineBuffer).trim();
@@ -424,48 +508,72 @@ async function queryLocalCLI(
           }
         }
 
+        // Обработка Claude stdoutBuffer без newline
+        if (agentName === "claude" && stdoutBuffer.trim()) {
+          try {
+            const ev = JSON.parse(stdoutBuffer.trim());
+            if (ev.type === "result") {
+              finalResult = ev.result ?? "";
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+
         const finalStderr = Buffer.concat(stderrChunks).toString();
 
         if (code !== 0) {
-          reject(new Error(`Локальный CLI ${agentName} завершился с кодом ${code}.\nStderr: ${finalStderr}`));
+          let cleanStderr = finalStderr;
+          if (cleanStderr.length > 512) {
+            cleanStderr = cleanStderr.slice(0, 512) + "... (truncated)";
+          }
+          reject(new Error(`Локальный CLI ${agentName} завершился с кодом ${code}.\nStderr: ${cleanStderr}`));
         } else {
           let result = agentName === "claude" && finalResult ? finalResult : Buffer.concat(stdoutChunks).toString();
           result = cleanCLIOutput(result);
 
-          try {
-            const artifacts = await detectAndReadSessionArtifacts(agentName, startTime);
-            if (artifacts) {
-              result += artifacts;
-            }
-          } catch (artifactErr: any) {
-            process.stderr.write(`[Orchestrator] Ошибка парсинга артефактов: ${artifactErr.message}\n`);
-          }
-
-          resolve(result);
+          detectAndReadSessionArtifacts(agentName, startTime, sessionId)
+            .then((artifacts) => {
+              if (artifacts) {
+                result += artifacts;
+              }
+              resolve(result);
+            })
+            .catch((artifactErr: any) => {
+              process.stderr.write(`[Orchestrator] Ошибка парсинга артефактов: ${artifactErr.message}\n`);
+              resolve(result);
+            });
         }
       });
-    });
 
-    child.on("error", (err) => {
-      cleanupPid();
-      if (isSettled) return;
-      isSettled = true;
-      clearAllTimers();
-      killProcessGroup();
-      cleanupTempFile().then(() => {
+      child.on("error", (err) => {
+        cleanupPid();
+        if (isSettled) return;
+        isSettled = true;
+        clearAllTimers();
+        killProcessGroup();
+        cleanupTempFileSync();
         reject(err);
       });
-    });
 
-    const fullPrompt = `${systemPrompt}\n\nВОПРОС:\n${question}`;
-    if (agentName !== "grok") {
-      child.stdin.on("error", (err) => {
-        // Игнорируем EPIPE ошибку записи в закрытый stdin
-      });
-      child.stdin.write(fullPrompt);
-      child.stdin.end();
+      const fullPrompt = `${systemPrompt}\n\nВОПРОС:\n${question}`;
+      if (agentName !== "grok" && child.stdin) {
+        child.stdin.on("error", (err) => {
+          // Игнорируем EPIPE ошибку записи в закрытый stdin
+        });
+        child.stdin.write(fullPrompt);
+        child.stdin.end();
+      }
+    });
+  } finally {
+    if (tempPromptFile) {
+      try {
+        await fs.unlink(tempPromptFile).catch(() => {});
+      } catch (e) {
+        // ignore
+      }
     }
-  });
+  }
 }
 
 /**
@@ -473,9 +581,9 @@ async function queryLocalCLI(
  * Контент файлов не загружается, чтобы не перегружать контекст агента.
  * Агент должен самостоятельно прочесть нужные файлы через инструменты чтения файлов при необходимости.
  */
-async function loadAgentSkills(agentName: string): Promise<string> {
+async function loadAgentSkills(agentName: string, sessionId?: string): Promise<string> {
   const globalSkillsDir = path.join(SERVER_ROOT, "skills");
-  const agentSkillsDir = path.join(AGENT_HOMES_ROOT, agentName, "skills");
+  const agentSkillsDir = path.join(getAgentHome(agentName, sessionId), "skills");
   
   const skillsList: string[] = [];
 
@@ -536,7 +644,8 @@ export async function runAgent(
   retryAttempts: number,
   referer?: string,
   title?: string,
-  personality?: CharacterPersonality
+  personality?: CharacterPersonality,
+  sessionId?: string
 ): Promise<AgentResponse> {
   const ISOLATION_INSTRUCTION = 
     "ПРАВИЛА ОКРУЖЕНИЯ И КОНСУЛЬТАЦИИ:\n" +
@@ -547,7 +656,7 @@ export async function runAgent(
     "- Форматируй свой ответ структурировано на русском языке с использованием Markdown.";
 
   const startTime = Date.now();
-  const agentSkills = await loadAgentSkills(agentName);
+  const agentSkills = await loadAgentSkills(agentName, sessionId);
   
   let systemPrompt = 
     `${rolePrompt}\n\n` +
@@ -565,12 +674,11 @@ export async function runAgent(
   try {
     process.stderr.write(`[Consult Orchestrator] Запуск агента ${agentName} (модель: ${agentConfig.model}, характер: ${personality ? personality.name : "Обычный"})...\n`);
     
-    const localAgents = ["codex", "claude", "agy", "gemini", "mimo", "grok"];
     let content = "";
 
-    if (localAgents.includes(agentName)) {
+    if (LOCAL_AGENTS.includes(agentName)) {
       // Динамически настраиваем .claude.json для агента перед запуском под его роль
-      await setupAgentMcpConfig(agentName, role);
+      await setupAgentMcpConfig(agentName, role, sessionId);
       
       process.stderr.write(`[Consult Orchestrator] Вызов локального CLI для агента ${agentName}...\n`);
       try {
@@ -579,30 +687,62 @@ export async function runAgent(
           agentConfig,
           systemPrompt,
           question,
-          timeoutMs
+          timeoutMs,
+          sessionId
         );
       } catch (cliErr: any) {
         const errStr = cliErr.message || String(cliErr);
         const isAuthError = errStr.includes("authentication_failed") || 
                             errStr.includes("authenticate") || 
                             errStr.includes("credentials") || 
-                            errStr.includes("401");
+                            errStr.includes("401") ||
+                            errStr.includes("не авторизован") ||
+                            errStr.includes("интерактивный");
                             
         if (isAuthError) {
-          process.stderr.write(`[Consult Orchestrator] ⚠️ Обнаружена ошибка авторизации для локального агента ${agentName}. Повторно копируем credentials с хоста и перезапускаем...\n`);
-          // Обновляем credentials на лету
-          await ensureAgentHomeDirs();
-          
-          // Пробуем запустить повторно
-          content = await queryLocalCLI(
-            agentName,
-            agentConfig,
-            systemPrompt,
-            question,
-            timeoutMs
-          );
+          process.stderr.write(`[Consult Orchestrator] ⚠️ Обнаружена ошибка авторизации для локального агента ${agentName}. Повторно копируем credentials с хоста...\n`);
+          try {
+            await ensureAgentHomeDirs(sessionId);
+            content = await queryLocalCLI(
+              agentName,
+              agentConfig,
+              systemPrompt,
+              question,
+              timeoutMs,
+              sessionId
+            );
+          } catch (retryErr: any) {
+            process.stderr.write(`[Consult Orchestrator] ⚠️ Повторный запуск локального агента ${agentName} завершился сбоем. Переключаемся на резервный опрос через OpenRouter (модель: ${agentConfig.model})...\n`);
+            content = await queryOpenRouter(
+              apiKey,
+              agentConfig.model,
+              systemPrompt,
+              question,
+              agentConfig,
+              timeoutMs,
+              retryAttempts,
+              referer,
+              title
+            );
+          }
         } else {
-          throw cliErr;
+          process.stderr.write(`[Consult Orchestrator] ⚠️ Ошибка при запуске локального агента ${agentName}: ${errStr}. Переключаемся на резервный опрос через OpenRouter (модель: ${agentConfig.model})...\n`);
+          try {
+            content = await queryOpenRouter(
+              apiKey,
+              agentConfig.model,
+              systemPrompt,
+              question,
+              agentConfig,
+              timeoutMs,
+              retryAttempts,
+              referer,
+              title
+            );
+          } catch (orErr: any) {
+            process.stderr.write(`[Consult Orchestrator] ❌ Резервный опрос через OpenRouter для ${agentName} также завершился сбоем: ${orErr.message || String(orErr)}\n`);
+            throw cliErr;
+          }
         }
       }
     } else {
@@ -641,35 +781,50 @@ export async function runAgent(
   }
 }
 
-export function isLocalAgentAvailable(agentName: string): boolean {
+export function resolveAgentBinInfo(agentName: string): { defaultBinPath: string; globalBinName: string } {
   const userHome = os.homedir();
+  switch (agentName) {
+    case "codex":
+      return {
+        defaultBinPath: path.join(userHome, ".npm-global", "bin", "codex"),
+        globalBinName: "codex"
+      };
+    case "claude":
+      return {
+        defaultBinPath: path.join(userHome, ".local", "bin", "claude"),
+        globalBinName: "claude"
+      };
+    case "agy":
+    case "gemini":
+      return {
+        defaultBinPath: path.join(userHome, ".local", "bin", "agy"),
+        globalBinName: "agy"
+      };
+    case "mimo":
+      return {
+        defaultBinPath: path.join(userHome, ".mimocode", "bin", "mimo"),
+        globalBinName: "mimo"
+      };
+    case "grok":
+      return {
+        defaultBinPath: path.join(userHome, ".local", "bin", "grok"),
+        globalBinName: "grok"
+      };
+    default:
+      throw new Error(`Неизвестный агент: ${agentName}`);
+  }
+}
+
+export function isLocalAgentAvailable(agentName: string): boolean {
   let defaultBinPath = "";
   let globalBinName = "";
 
-  switch (agentName) {
-    case "codex":
-      defaultBinPath = path.join(userHome, ".npm-global", "bin", "codex");
-      globalBinName = "codex";
-      break;
-    case "claude":
-      defaultBinPath = path.join(userHome, ".local", "bin", "claude");
-      globalBinName = "claude";
-      break;
-    case "agy":
-    case "gemini":
-      defaultBinPath = path.join(userHome, ".local", "bin", "agy");
-      globalBinName = "agy";
-      break;
-    case "mimo":
-      defaultBinPath = path.join(userHome, ".mimocode", "bin", "mimo");
-      globalBinName = "mimo";
-      break;
-    case "grok":
-      defaultBinPath = path.join(userHome, ".local", "bin", "grok");
-      globalBinName = "grok";
-      break;
-    default:
-      return false;
+  try {
+    const binInfo = resolveAgentBinInfo(agentName);
+    defaultBinPath = binInfo.defaultBinPath;
+    globalBinName = binInfo.globalBinName;
+  } catch (e) {
+    return false;
   }
 
   if (existsSync(defaultBinPath)) {
@@ -709,12 +864,22 @@ export async function runConsultation(options: {
   skipSynthesis: boolean;
   config: AppConfig;
 }): Promise<ConsultationResult> {
-  const { question, role, customRolePrompt, agentsList, skipSynthesis, config } = options;
+  const { question, role, customRolePrompt, agentsList: rawAgentsList, skipSynthesis, config } = options;
+  const agentsList = [...new Set(rawAgentsList)];
+
+  // Валидация входных параметров от Prompt Injection и Resource Exhaustion
+  if (question && question.length > 100000) {
+    throw new Error("Вопрос превышает допустимый лимит 100000 символов.");
+  }
+  if (customRolePrompt && customRolePrompt.length > 4000) {
+    throw new Error("Кастомный промпт роли превышает допустимый лимит 4000 символов.");
+  }
+
   const apiKey = config.openrouter_api_key;
   const startTime = Date.now();
-
-  // Синхронизируем директории и актуальные сессионные токены агентов перед каждым запуском консилиума
-  await ensureAgentHomeDirs();
+  const sessionId = randomUUID();
+  const sessionHomeDir = path.join(AGENT_HOMES_ROOT, "sessions", sessionId);
+  activeSessionDirs.add(sessionHomeDir);
 
   // 1. Определение промпта роли
   let rolePrompt = "";
@@ -742,87 +907,102 @@ export async function runConsultation(options: {
     process.stderr.write(`[Consult Orchestrator] Ожидаем ответы от агентов: ${Array.from(activeAgents).map(a => a.toUpperCase()).join(", ")} (прошло ${elapsedSec} сек)\n`);
   }, 10000);
 
-  const localAgents = ["codex", "claude", "agy", "gemini", "mimo", "grok"];
-
-  const agentPromises = agentsList.map(async (agentName, index) => {
-    let agentConfig = config.agents[agentName];
-    if (!agentConfig) {
-      activeAgents.delete(agentName);
-      return {
-        agentName,
-        model: "unknown",
-        success: false,
-        error: `Агент с именем '${agentName}' не найден в конфигурации.`,
-        durationMs: 0
-      } as AgentResponse;
-    }
-
-    if (localAgents.includes(agentName) && !isLocalAgentAvailable(agentName)) {
-      activeAgents.delete(agentName);
-      process.stderr.write(`[Consult Orchestrator] Локальный агент ${agentName.toUpperCase()} выключен: исполняемый файл не найден в системе.\n`);
-      return {
-        agentName,
-        model: agentConfig.model,
-        success: false,
-        error: `Локальный агент '${agentName}' не установлен на этой машине. Опрос пропущен.`,
-        durationMs: 0
-      } as AgentResponse;
-    }
-
-    if (role === "security_auditor" && agentName === "codex") {
-      agentConfig = {
-        ...agentConfig,
-        model: "openai/gpt-5.5",
-        reasoning: {
-          enable: true,
-          reasoning_effort: "high"
-        }
-      };
-    }
-
-    // Назначаем характер по кругу из перемешанного списка
-    const personality = shuffledPersonalities[index % shuffledPersonalities.length];
-    
-    try {
-      const res = await runAgent(
-        agentName,
-        agentConfig,
-        role,
-        rolePrompt,
-        question,
-        apiKey,
-        config.timeout_ms,
-        config.retry_attempts,
-        config.openrouter_referer,
-        config.openrouter_title,
-        personality
-      );
-      
-      completedCount++;
-      activeAgents.delete(agentName);
-      process.stderr.write(`[Consult Orchestrator] [${completedCount}/${agentsList.length}] Агент ${agentName.toUpperCase()} (${res.personality || "Без характера"}) завершил работу за ${(res.durationMs / 1000).toFixed(1)} сек с результатом: ${res.success ? "✅ Успешно" : "❌ Ошибка"}\n`);
-      return res;
-    } catch (err: any) {
-      completedCount++;
-      activeAgents.delete(agentName);
-      process.stderr.write(`[Consult Orchestrator] [${completedCount}/${agentsList.length}] Агент ${agentName.toUpperCase()} завершился критической ошибкой: ${err.message || String(err)}\n`);
-      return {
-        agentName,
-        model: agentConfig.model,
-        success: false,
-        error: err.message || String(err),
-        durationMs: Date.now() - startTime,
-        personality: personality ? personality.name : undefined
-      } as AgentResponse;
-    }
-  });
-
   let agentResults: AgentResponse[] = [];
+
   try {
+    // Синхронизируем директории и актуальные сессионные токены агентов перед каждым запуском консилиума в изолированной папке
+    await ensureAgentHomeDirs(sessionId);
+
+    const agentPromises = agentsList.map(async (agentName, index) => {
+      let agentConfig = config.agents[agentName];
+      if (!agentConfig) {
+        activeAgents.delete(agentName);
+        return {
+          agentName,
+          model: "unknown",
+          success: false,
+          error: `Агент с именем '${agentName}' не найден в конфигурации.`,
+          durationMs: 0
+        } as AgentResponse;
+      }
+
+      if (LOCAL_AGENTS.includes(agentName) && !isLocalAgentAvailable(agentName)) {
+        activeAgents.delete(agentName);
+        process.stderr.write(`[Consult Orchestrator] Локальный агент ${agentName.toUpperCase()} выключен: исполняемый файл не найден в системе.\n`);
+        return {
+          agentName,
+          model: agentConfig.model,
+          success: false,
+          error: `Локальный агент '${agentName}' не установлен на этой машине. Опрос пропущен.`,
+          durationMs: 0
+        } as AgentResponse;
+      }
+
+      if (role === "security_auditor" && agentName === "codex") {
+        agentConfig = {
+          ...agentConfig,
+          model: "openai/gpt-5.5",
+          reasoning: {
+            enable: true,
+            reasoning_effort: "high"
+          }
+        };
+      }
+
+      // Назначаем характер по кругу из перемешанного списка
+      const personality = shuffledPersonalities[index % shuffledPersonalities.length];
+      
+      try {
+        const res = await runAgent(
+          agentName,
+          agentConfig,
+          role,
+          rolePrompt,
+          question,
+          apiKey,
+          config.timeout_ms,
+          config.retry_attempts,
+          config.openrouter_referer,
+          config.openrouter_title,
+          personality,
+          sessionId
+        );
+        
+        completedCount++;
+        activeAgents.delete(agentName);
+        process.stderr.write(`[Consult Orchestrator] [${completedCount}/${agentsList.length}] Агент ${agentName.toUpperCase()} (${res.personality || "Без характера"}) завершил работу за ${(res.durationMs / 1000).toFixed(1)} сек с результатом: ${res.success ? "✅ Успешно" : "❌ Ошибка"}\n`);
+        return res;
+      } catch (err: any) {
+        completedCount++;
+        activeAgents.delete(agentName);
+        process.stderr.write(`[Consult Orchestrator] [${completedCount}/${agentsList.length}] Агент ${agentName.toUpperCase()} завершился критической ошибкой: ${err.message || String(err)}\n`);
+        return {
+          agentName,
+          model: agentConfig.model,
+          success: false,
+          error: err.message || String(err),
+          durationMs: Date.now() - startTime,
+          personality: personality ? personality.name : undefined
+        } as AgentResponse;
+      }
+    });
+
     agentResults = await Promise.all(agentPromises);
   } finally {
     clearInterval(progressTimer);
+    // Обратная синхронизация отключена из соображений безопасности (defensive design против credential poisoning)
+    process.stderr.write(`[Consult Orchestrator] Обратная синхронизация токенов отключена из соображений безопасности.\n`);
+
+    // Гарантированно очищаем изолированную сессионную директорию агентов
+    const sessionHomeDir = path.join(AGENT_HOMES_ROOT, "sessions", sessionId);
+    try {
+      await fs.rm(sessionHomeDir, { recursive: true, force: true });
+      activeSessionDirs.delete(sessionHomeDir);
+    } catch (rmErr: any) {
+      process.stderr.write(`[Consult Orchestrator] Не удалось удалить сессионную директорию ${sessionHomeDir}: ${rmErr.message}\n`);
+    }
   }
+
   const successfulResponses = agentResults.filter(r => r.success && r.content);
 
   // Если никто не ответил, возвращаем ошибку
@@ -847,7 +1027,7 @@ export async function runConsultation(options: {
 
   // 3. Синтез (самореализация) через Minimax-M3
   if (!skipSynthesis && successfulResponses.length > 0) {
-    let agentsReport = `Исходный вопрос: "${question}"\n\n`;
+    let agentsReport = `Исходный вопрос: <source_question>${question}</source_question>\n\n`;
     agentsReport += `Роль специалиста: "${role}"\n\n`;
     agentsReport += `Ответы специализированных агентов:\n\n`;
     
@@ -887,7 +1067,6 @@ export async function runConsultation(options: {
   }
 
   const totalDurationMs = Date.now() - startTime;
-  const synthesisDurationMs = Date.now() - synthStartTime;
 
   // 4. Формирование Markdown отчета
   let outputMarkdown = `# Результаты консилиума "Агент Консалт"\n\n`;
