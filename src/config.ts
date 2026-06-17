@@ -5,14 +5,48 @@ import { fileURLToPath } from "url";
 import os from "os";
 import { randomUUID } from "crypto";
 
+import fsSync from "fs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Корень самого MCP-сервера (где лежит исполняемый код и config.json)
 export const SERVER_ROOT = path.resolve(__dirname, "..");
 
+/**
+ * Определяет реальный глобальный HOME пользователя, обходя песочницы и sudo-изоляцию
+ */
+export function resolveGlobalHome(): string {
+  if (process.env.AGENT_CONSULT_USER_HOME) {
+    return process.env.AGENT_CONSULT_USER_HOME;
+  }
+
+  const sudoUser = process.env.SUDO_USER || process.env.USER || process.env.LOGNAME;
+  if (process.platform !== "win32" && sudoUser && sudoUser !== "root") {
+    const isMac = process.platform === "darwin";
+    const baseDir = isMac ? "/Users" : "/home";
+    const candidatePath = path.join(baseDir, sudoUser);
+    
+    try {
+      if (fsSync.existsSync(candidatePath)) {
+        return candidatePath;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  const currentHome = os.homedir();
+  if (currentHome.includes(".agent-consult")) {
+    const idx = currentHome.indexOf(".agent-consult");
+    return currentHome.substring(0, idx - 1);
+  }
+
+  return currentHome;
+}
+
 // Скрытая папка в домашней директории пользователя для изолированных HOME-директорий агентов
-export const AGENT_HOMES_ROOT = path.join(os.homedir(), ".agent-consult", "homes");
+export const AGENT_HOMES_ROOT = path.join(resolveGlobalHome(), ".agent-consult", "homes");
 
 // Активное рабочее пространство пользователя (текущий проект)
 // Берем из переменной окружения CLAUDE_PROJECT_DIR or process.cwd()
@@ -301,7 +335,7 @@ function escapeTomlString(val: string): string {
 }
 
 async function setupGrokConfig(agentHome: string, role: string): Promise<void> {
-  const GLOBAL_HOME = os.homedir();
+  const GLOBAL_HOME = resolveGlobalHome();
   const globalClaudeJsonPath = path.join(GLOBAL_HOME, ".claude.json");
   const targetGrokConfig = path.join(agentHome, ".grok", "config.toml");
 
@@ -404,7 +438,7 @@ export async function setupAgentMcpConfig(agentName: string, role: string, sessi
   }
   
   const targetClaudeJson = path.join(agentHome, ".claude.json");
-  const GLOBAL_HOME = os.homedir();
+  const GLOBAL_HOME = resolveGlobalHome();
   const globalClaudeJsonPath = path.join(GLOBAL_HOME, ".claude.json");
 
   try {
@@ -575,7 +609,7 @@ export async function ensureAgentHomeDirs(sessionId?: string): Promise<void> {
   }
 
   if (sessionId) {
-    const GLOBAL_HOME = os.homedir();
+    const GLOBAL_HOME = resolveGlobalHome();
 
     // Хелпер для создания символических ссылок на авторизационные токены Claude
     const copyClaudeAuth = async (targetHome: string) => {
@@ -719,7 +753,7 @@ export async function ensureAgentHomeDirs(sessionId?: string): Promise<void> {
  * обратно в глобальный домашний каталог пользователя (на хост) для предотвращения их потери при обновлении.
  */
 export async function syncAgentCredentialsBack(sessionId: string): Promise<void> {
-  const GLOBAL_HOME = os.homedir();
+  const GLOBAL_HOME = resolveGlobalHome();
 
   // Хелпер копирования исключительно авторизационных токенов Claude
   const syncClaudeAuth = async (targetHome: string) => {

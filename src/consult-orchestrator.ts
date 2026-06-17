@@ -1,4 +1,4 @@
-import { AppConfig, AgentConfig, loadConfig, loadRolePrompt, loadPersonalityPrompt, WORKSPACE_ROOT, SERVER_ROOT, AGENT_HOMES_ROOT, setupAgentMcpConfig, ensureAgentHomeDirs, getAgentHome, LOCAL_AGENTS, syncAgentCredentialsBack, sanitizeLogMessage } from "./config.js";
+import { AppConfig, AgentConfig, loadConfig, loadRolePrompt, loadPersonalityPrompt, WORKSPACE_ROOT, SERVER_ROOT, AGENT_HOMES_ROOT, setupAgentMcpConfig, ensureAgentHomeDirs, getAgentHome, LOCAL_AGENTS, syncAgentCredentialsBack, sanitizeLogMessage, resolveGlobalHome } from "./config.js";
 import { queryOpenRouter, AgentResponse } from "./openrouter-client.js";
 import fs from "fs/promises";
 import fsSync, { existsSync } from "fs";
@@ -171,7 +171,7 @@ async function queryLocalCLI(
   timeoutMs: number,
   sessionId?: string
 ): Promise<string> {
-  const userHome = os.homedir();
+  const userHome = resolveGlobalHome();
   let tempPromptFile = "";
 
   const model = agentConfig.model;
@@ -760,7 +760,7 @@ export async function runAgent(
 }
 
 export function resolveAgentBinInfo(agentName: string): { defaultBinPath: string; globalBinName: string } {
-  const userHome = os.homedir();
+  const userHome = resolveGlobalHome();
   switch (agentName) {
     case "codex":
       return {
