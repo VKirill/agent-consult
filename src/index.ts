@@ -220,10 +220,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         title: "Check agents status and liveness",
         description: 
           "Performs system diagnostics. Validates the OpenRouter API key, checks network availability, " +
-          "and prints the current model mappings for all five agents and the synthesizer.",
+          "and optionally performs active ping (PONG) checks on all configured agents.",
         inputSchema: {
           type: "object",
-          properties: {},
+          properties: {
+            ping: {
+              type: "boolean",
+              description: "Если true, выполняет активный запуск (ping) каждого агента для проверки работоспособности и авторизации."
+            }
+          },
         },
       },
       {
@@ -293,6 +298,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   if (name === "check_agents_status") {
     const config = await loadConfig();
     const isAlive = await checkOpenRouterLiveness(config.openrouter_api_key);
+    const doActivePing = !!args?.ping;
     
     let statusText = `### Статус MCP-сервера "Агент Консалт":\n\n`;
     statusText += `- **Связь с OpenRouter**: ${isAlive ? "✅ Доступен" : "❌ Ошибка подключения / неверный API-ключ"}\n`;
@@ -315,6 +321,46 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (!config.openrouter_api_key || config.openrouter_api_key.includes("YOUR_")) {
       statusText += `\n⚠️ **Внимание**: API-ключ не настроен. Укажите переменную окружения \`OPENROUTER_API_KEY\` или обновите \`config.json\`.`;
+    }
+
+    if (doActivePing) {
+      statusText += `\n\n#### 🏓 Результаты активного пинга агентов (таймаут 15с):\n`;
+      const agentsToPing = Object.keys(config.agents);
+      
+      const pingConfig = {
+        ...config,
+        timeout_ms: 15000, // Короткий таймаут для пинга
+        retry_attempts: 0 // Без повторных попыток для скорости
+      };
+
+      try {
+        const pingResult = await runConsultation({
+          question: "Respond with exactly the word PONG and nothing else. This is a system liveness check.",
+          role: "general",
+          agentsList: agentsToPing,
+          skipSynthesis: true,
+          config: pingConfig
+        });
+
+        for (const res of pingResult.agentResults) {
+          const cleanOutput = res.content ? res.content.trim().replace(/[^a-zA-Z]/g, "") : "";
+          const isPong = cleanOutput.toUpperCase().includes("PONG");
+
+          if (res.success && isPong) {
+            statusText += `- **${res.agentName.toUpperCase()}**: ✅ PONG (${(res.durationMs / 1000).toFixed(2)}с)\n`;
+          } else if (res.success) {
+            statusText += `- **${res.agentName.toUpperCase()}**: ⚠️ Ответил не PONG (ответ: "${res.content?.slice(0, 30)}") (${(res.durationMs / 1000).toFixed(2)}с)\n`;
+          } else {
+            if (res.error?.includes("не установлен")) {
+              statusText += `- **${res.agentName.toUpperCase()}**: ❌ Пропущен (Не установлен в системе)\n`;
+            } else {
+              statusText += `- **${res.agentName.toUpperCase()}**: ❌ Ошибка (${res.error || "неизвестная ошибка"})\n`;
+            }
+          }
+        }
+      } catch (err: any) {
+        statusText += `\n❌ Ошибка при выполнении пинга: ${err.message || String(err)}\n`;
+      }
     }
 
     return {
