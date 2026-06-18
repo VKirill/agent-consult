@@ -16,6 +16,7 @@ import { logAuditToolCall } from "../utils/audit-logger.js";
 import { loadAgentSkills } from "./skills.js";
 import { queryOpenRouter, AgentResponse } from "../openrouter-client.js";
 import { loadPersonalityPrompt } from "../core/config.js";
+import { cleanAndValidateModel, buildCliArgs, sanitizeEnvPath, buildChildEnv } from "./cli/invocation.js";
 
 export const activeChildPids = new Set<number>();
 export const activeSessionDirs = new Set<string>();
@@ -102,10 +103,7 @@ export async function queryLocalCLI(
   let tempPromptFile = "";
 
   const model = agentConfig.model;
-  const cleanModel = model.replace(/^(openai|anthropic|google|xiaomi|xai)\//, "");
-  if (cleanModel && !/^[a-zA-Z0-9][a-zA-Z0-9_\-\.]{0,63}$/.test(cleanModel)) {
-    throw new Error(`Критическая уязвимость: Некорректное имя модели '${cleanModel}'`);
-  }
+  const cleanModel = cleanAndValidateModel(model);
 
   if (agentName === "grok") {
     const grokHome = getAgentHome("grok", sessionId);
@@ -148,43 +146,11 @@ export async function queryLocalCLI(
         return;
       }
 
-      switch (agentName) {
-        case "codex":
-          args = ["exec", "-", "--model", cleanModel];
-          if (agentConfig.reasoning?.enable) {
-            const effort = agentConfig.reasoning.reasoning_effort || "medium";
-            args.push("-c", `model_reasoning_effort=${effort}`);
-          }
-          break;
-        case "claude":
-          const modelArg = (cleanModel === "sonnet" || cleanModel === "opus" || cleanModel === "haiku") ? cleanModel : "sonnet";
-          args = ["-p", "--model", modelArg, "--output-format", "stream-json", "--verbose", "--permission-mode", "plan"];
-          break;
-        case "agy":
-        case "gemini":
-          args = ["-p", "-"];
-          break;
-        case "mimo":
-          args = ["run", "--pure"];
-          break;
-        case "grok":
-          args = [
-            "--no-memory",
-            "--permission-mode", "auto",
-            "--prompt-file", tempPromptFile
-          ];
-          if (cleanModel && cleanModel !== "grok") {
-            args.push("--model", cleanModel);
-          }
-          break;
-      }
+      args = buildCliArgs(agentName, cleanModel, agentConfig.reasoning, tempPromptFile);
 
       if (!cachedCleanPath) {
         const rawPath = process.env.PATH || "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
-        cachedCleanPath = rawPath
-          .split(path.delimiter)
-          .filter(p => p && path.isAbsolute(p) && !p.split(path.sep).includes("..") && !p.split(path.sep).includes("."))
-          .join(path.delimiter);
+        cachedCleanPath = sanitizeEnvPath(rawPath);
       }
       const cleanPath = cachedCleanPath;
 
@@ -198,23 +164,7 @@ export async function queryLocalCLI(
       const agentHome = getAgentHome(agentName, sessionId);
       const isWindows = process.platform === "win32";
 
-      const childEnv: Record<string, string> = {
-        HOME: agentHome,
-        PATH: cleanPath,
-        LANG: process.env.LANG || "en_US.UTF-8",
-        TERM: "dumb",
-        CI: "1",
-        NO_COLOR: "1",
-        FORCE_COLOR: "0",
-        NO_UPDATE_NOTIFIER: "1",
-        NODE_NO_WARNINGS: "1",
-        npm_config_update_notifier: "false",
-        NODE_OPTIONS: "--max-old-space-size=512",
-        UV_THREADPOOL_SIZE: "2",
-        GEMINI_CLI_TRUST_WORKSPACE: "false",
-        GEMINI_CLI_NO_RELAUNCH: "1",
-        PAGER: "cat"
-      };
+      const childEnv = buildChildEnv(agentHome, cleanPath);
 
       const child = spawn(binPath, args, {
         cwd: WORKSPACE_ROOT,
