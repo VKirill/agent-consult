@@ -74,4 +74,17 @@ describe("queryLocalCLI (characterization, mock spawn)", () => {
     const res = await p;
     expect(res).toContain("PONG");
   });
+
+  it("idle-таймаут без данных -> reject (fake timers)", async () => {
+    vi.useFakeTimers();
+    try {
+      const p = queryLocalCLI("gemini", cfg("gemini-2.5-pro"), "sys", "вопрос", 1000);
+      p.catch(() => {}); // не даём unhandled rejection до advance
+      // INITIAL_IDLE_TIMEOUT_MS = 120000; данные не шлём
+      await vi.advanceTimersByTimeAsync(120_001);
+      await expect(p).rejects.toThrow(/таймаут неактивности/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
