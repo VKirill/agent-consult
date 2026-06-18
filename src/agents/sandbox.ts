@@ -17,8 +17,6 @@ interface AgentClaudeConfig {
   autoUpdates: boolean;
   theme: string;
   userID?: string;
-  machineID?: string;
-  oauthAccount?: unknown;
   mcpServers: Record<string, McpServerConfig>;
   permissions: { allow: string[] };
 }
@@ -141,8 +139,6 @@ export async function setupAgentMcpConfig(agentName: string, role: string, sessi
       autoUpdates: globalJson.autoUpdates ?? false,
       theme: globalJson.theme ?? "light",
       userID: globalJson.userID,
-      machineID: globalJson.machineID,
-      oauthAccount: globalJson.oauthAccount,
       mcpServers: {},
       permissions: {
         allow: []
