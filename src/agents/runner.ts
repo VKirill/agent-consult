@@ -18,7 +18,7 @@ import { queryOpenRouter, AgentResponse } from "../openrouter-client.js";
 import { loadPersonalityPrompt } from "../core/config.js";
 import { cleanAndValidateModel, buildCliArgs, sanitizeEnvPath, buildChildEnv } from "./cli/invocation.js";
 import { parseClaudeStreamLine } from "./cli/claude-stream.js";
-import { detectsInteractiveAuth, detectToolActivity, parseToolNameFromText } from "./cli/output-filters.js";
+import { detectsInteractiveAuth, detectToolActivity, parseToolNameFromText, isIgnorableStderrLine, isErrorLikeStderrLine } from "./cli/output-filters.js";
 
 export const activeChildPids = new Set<number>();
 export const activeSessionDirs = new Set<string>();
@@ -444,17 +444,15 @@ export async function queryLocalCLI(
           const cleanLine = stripAnsi(line).trim();
           if (!cleanLine) continue;
           
-          if (cleanLine.includes("ExperimentalWarning:") || cleanLine.includes("DeprecationWarning:")) continue;
-          if (/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\-|\/\\]+$/.test(cleanLine)) continue;
-          
+          if (isIgnorableStderrLine(cleanLine)) continue;
+
           if (logFilePath) {
             const timestamp = new Date().toISOString();
             const sanitized = sanitizeLogMessage(cleanLine);
             fsSync.appendFileSync(logFilePath, `[${timestamp}] [${agentName.toUpperCase()}] [STDERR] ${sanitized}\n`);
           }
 
-          const lower = cleanLine.toLowerCase();
-          if (lower.includes("error") || lower.includes("fail") || lower.includes("except") || lower.includes("fatal") || lower.includes("warn")) {
+          if (isErrorLikeStderrLine(cleanLine)) {
             process.stderr.write(`[Агент: ${agentName.toUpperCase()} WARN/ERR] ${cleanLine}\n`);
           }
         }

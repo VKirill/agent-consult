@@ -2,7 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   detectsInteractiveAuth,
   detectToolActivity,
-  parseToolNameFromText
+  parseToolNameFromText,
+  isIgnorableStderrLine,
+  isErrorLikeStderrLine
 } from "../agents/cli/output-filters.js";
 
 describe("detectsInteractiveAuth", () => {
@@ -46,5 +48,28 @@ describe("parseToolNameFromText", () => {
   it("дефолт при отсутствии", () => {
     expect(parseToolNameFromText("nothing here")).toBe("unknown_mcp_tool");
     expect(parseToolNameFromText(undefined)).toBe("unknown_mcp_tool");
+  });
+});
+
+describe("isIgnorableStderrLine", () => {
+  it("пропускает Node-предупреждения и спиннеры", () => {
+    expect(isIgnorableStderrLine("(node:1) ExperimentalWarning: x")).toBe(true);
+    expect(isIgnorableStderrLine("DeprecationWarning: y")).toBe(true);
+    expect(isIgnorableStderrLine("⠋⠙⠹")).toBe(true);
+    expect(isIgnorableStderrLine("-|/\\")).toBe(true);
+  });
+  it("содержательную строку не пропускает", () => {
+    expect(isIgnorableStderrLine("fatal: connection refused")).toBe(false);
+  });
+});
+
+describe("isErrorLikeStderrLine", () => {
+  it("ловит error/fail/except/fatal/warn", () => {
+    expect(isErrorLikeStderrLine("FATAL: boom")).toBe(true);
+    expect(isErrorLikeStderrLine("request failed")).toBe(true);
+    expect(isErrorLikeStderrLine("Exception raised")).toBe(true);
+  });
+  it("обычную строку — нет", () => {
+    expect(isErrorLikeStderrLine("just a normal line")).toBe(false);
   });
 });

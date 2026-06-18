@@ -51,3 +51,25 @@ export function parseToolNameFromText(text: string | undefined): string {
   const match = text ? text.match(/(?:calling|using|running|tool|инструмента)\s+([a-zA-Z0-9_\-/]+)/i) : null;
   return match ? match[1] : "unknown_mcp_tool";
 }
+
+const SPINNER_RE = /^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏\-|\/\\]+$/;
+
+/** Шумовые stderr-строки (предупреждения Node и анимации спиннера), которые пропускаем. */
+export function isIgnorableStderrLine(cleanLine: string): boolean {
+  if (cleanLine.includes("ExperimentalWarning:") || cleanLine.includes("DeprecationWarning:")) {
+    return true;
+  }
+  return SPINNER_RE.test(cleanLine);
+}
+
+/** Похожа ли stderr-строка на ошибку (для проброса в лог оркестратора). */
+export function isErrorLikeStderrLine(cleanLine: string): boolean {
+  const lower = cleanLine.toLowerCase();
+  return (
+    lower.includes("error") ||
+    lower.includes("fail") ||
+    lower.includes("except") ||
+    lower.includes("fatal") ||
+    lower.includes("warn")
+  );
+}
