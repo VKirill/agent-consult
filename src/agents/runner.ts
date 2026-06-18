@@ -1,7 +1,7 @@
 import fs from "fs/promises";
 import fsSync, { existsSync } from "fs";
 import path from "path";
-import { spawn, spawnSync } from "child_process";
+import { spawn } from "child_process";
 import os from "os";
 import { randomUUID } from "crypto";
 
@@ -19,6 +19,7 @@ import { loadPersonalityPrompt } from "../core/config.js";
 import { cleanAndValidateModel, buildCliArgs, sanitizeEnvPath, buildChildEnv } from "./cli/invocation.js";
 import { parseClaudeStreamLine } from "./cli/claude-stream.js";
 import { detectsInteractiveAuth, detectToolActivity, parseToolNameFromText, isIgnorableStderrLine, isErrorLikeStderrLine } from "./cli/output-filters.js";
+import { killProcessGroup as killProcessGroupImpl } from "./cli/process-supervisor.js";
 
 export const activeChildPids = new Set<number>();
 export const activeSessionDirs = new Set<string>();
@@ -205,25 +206,7 @@ export async function queryLocalCLI(
       let killEscalationTimer: NodeJS.Timeout | undefined;
 
       const killProcessGroup = (signal: "SIGTERM" | "SIGKILL" = "SIGTERM") => {
-        if (child.pid && child.pid > 0) {
-          try {
-            if (isWindows) {
-              spawnSync("C:\\Windows\\System32\\taskkill.exe", ["/pid", child.pid.toString(), "/f", "/t"]);
-            } else {
-              try {
-                process.kill(-child.pid, signal);
-              } catch (err: any) {
-                if (err.code === "ESRCH") {
-                  process.kill(child.pid, signal);
-                } else {
-                  throw err;
-                }
-              }
-            }
-          } catch (killErr) {
-            // ignore
-          }
-        }
+        killProcessGroupImpl(child.pid, signal, isWindows);
       };
 
       const clearAllTimers = () => {
