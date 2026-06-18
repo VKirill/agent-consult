@@ -17,6 +17,7 @@ import { loadAgentSkills } from "./skills.js";
 import { queryOpenRouter, AgentResponse } from "../openrouter-client.js";
 import { loadPersonalityPrompt } from "../core/config.js";
 import { cleanAndValidateModel, buildCliArgs, sanitizeEnvPath, buildChildEnv } from "./cli/invocation.js";
+import { parseClaudeStreamLine } from "./cli/claude-stream.js";
 
 export const activeChildPids = new Set<number>();
 export const activeSessionDirs = new Set<string>();
@@ -371,116 +372,73 @@ export async function queryLocalCLI(
           const lines = stdoutBuffer.split("\n");
           stdoutBuffer = lines.pop() ?? "";
           for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed) continue;
-            try {
-              let jsonStr = trimmed;
-              const lastBrace = jsonStr.lastIndexOf("}");
-              if (lastBrace !== -1) {
-                jsonStr = jsonStr.substring(0, lastBrace + 1);
-              }
-              const ev = JSON.parse(jsonStr);
-              
-              // 1. Обработка вызова инструмента (tool_use)
-              const isToolUse = ev.type === "tool_use" || 
-                                (ev.type === "content_block_start" && ev.content_block?.type === "tool_use") ||
-                                (ev.type === "assistant" && ev.message?.content?.some((c: any) => c.type === "tool_use"));
-              if (isToolUse) {
-                isExecutingTool = true;
-                let toolName = ev.name || ev.content_block?.name || "unknown";
-                let toolInput = ev.input || ev.content_block?.input || {};
-                let toolUseId = ev.id || ev.content_block?.id || "unknown";
-                if (ev.type === "assistant" && ev.message?.content) {
-                  const tu = ev.message.content.find((c: any) => c.type === "tool_use");
-                  if (tu) {
-                    toolName = tu.name || "unknown";
-                    toolInput = tu.input || {};
-                    toolUseId = tu.id || "unknown";
-                  }
-                }
-                const msg = `[Агент: CLAUDE] Вызов инструмента: ${toolName} (аргументы: ${JSON.stringify(toolInput)})\n`;
-                process.stderr.write(sanitizeLogMessage(msg));
+            const ev = parseClaudeStreamLine(line);
+            if (!ev) continue;
 
-                // Запускаем асинхронную обработку политики и аудит-лог
-                (async () => {
-                  const validation = await validateToolCallPolicy(role || "general", toolName, toolInput);
-                  
-                  logAuditToolCall({
-                    sessionId: sessionId || "global",
-                    agentName,
-                    role: role || "general",
-                    toolName,
-                    arguments: validation.sanitizedArguments,
-                    status: "pending"
-                  });
+            if (ev.kind === "tool_use") {
+              isExecutingTool = true;
+              const { toolName, toolInput, toolUseId } = ev;
+              const msg = `[Агент: CLAUDE] Вызов инструмента: ${toolName} (аргументы: ${JSON.stringify(toolInput)})\n`;
+              process.stderr.write(sanitizeLogMessage(msg));
 
-                  toolCallMap.set(toolUseId, {
-                    startTime: Date.now(),
-                    toolName,
-                    arguments: validation.sanitizedArguments
-                  });
-                })().catch(() => {});
+              // Запускаем асинхронную обработку политики и аудит-лог
+              (async () => {
+                const validation = await validateToolCallPolicy(role || "general", toolName, toolInput);
 
-                if (logFilePath) {
-                  const timestamp = new Date().toISOString();
-                  const sanitized = sanitizeLogMessage(`Вызов инструмента: ${toolName} (аргументы: ${JSON.stringify(toolInput)})`);
-                  fsSync.appendFileSync(logFilePath, `[${timestamp}] [CLAUDE] [TOOL_CALL] ${sanitized}\n`);
-                }
-              }
-              
-              // 2. Обработка возврата результата (tool_result)
-              const isToolResult = ev.type === "tool_result" || ev.type === "content_block_stop" || 
-                                   (ev.type === "user" && ev.message?.content?.some((c: any) => c.type === "tool_result"));
-              if (isToolResult) {
-                isExecutingTool = false;
-                let toolName = ev.tool_name || "";
-                let toolUseId = ev.tool_use_id || "";
-                if (ev.type === "user" && ev.message?.content) {
-                  const tr = ev.message.content.find((c: any) => c.type === "tool_result");
-                  if (tr) {
-                    toolName = tr.tool_use_id || "";
-                    toolUseId = tr.tool_use_id || "";
-                  }
-                }
-                process.stderr.write(`[Агент: CLAUDE] Инструмент ${toolName} вернул результат.\n`);
+                logAuditToolCall({
+                  sessionId: sessionId || "global",
+                  agentName,
+                  role: role || "general",
+                  toolName,
+                  arguments: validation.sanitizedArguments,
+                  status: "pending"
+                });
 
-                const cachedCall = toolCallMap.get(toolUseId);
-                if (cachedCall) {
-                  const durationMs = Date.now() - cachedCall.startTime;
-                  logAuditToolCall({
-                    sessionId: sessionId || "global",
-                    agentName,
-                    role: role || "general",
-                    toolName: cachedCall.toolName,
-                    arguments: cachedCall.arguments,
-                    status: "success",
-                    durationMs
-                  });
-                  toolCallMap.delete(toolUseId);
-                }
+                toolCallMap.set(toolUseId, {
+                  startTime: Date.now(),
+                  toolName,
+                  arguments: validation.sanitizedArguments
+                });
+              })().catch(() => {});
 
-                if (logFilePath) {
-                  const timestamp = new Date().toISOString();
-                  fsSync.appendFileSync(logFilePath, `[${timestamp}] [CLAUDE] [TOOL_RESULT] Инструмент ${toolName} вернул результат.\n`);
-                }
+              if (logFilePath) {
+                const timestamp = new Date().toISOString();
+                const sanitized = sanitizeLogMessage(`Вызов инструмента: ${toolName} (аргументы: ${JSON.stringify(toolInput)})`);
+                fsSync.appendFileSync(logFilePath, `[${timestamp}] [CLAUDE] [TOOL_CALL] ${sanitized}\n`);
               }
-              
-              // 3. Обработка результата ответа (result)
-              if (ev.type === "result") {
-                finalResult = ev.result ?? "";
+            } else if (ev.kind === "tool_result") {
+              isExecutingTool = false;
+              const { toolName, toolUseId } = ev;
+              process.stderr.write(`[Агент: CLAUDE] Инструмент ${toolName} вернул результат.\n`);
+
+              const cachedCall = toolCallMap.get(toolUseId);
+              if (cachedCall) {
+                const durationMs = Date.now() - cachedCall.startTime;
+                logAuditToolCall({
+                  sessionId: sessionId || "global",
+                  agentName,
+                  role: role || "general",
+                  toolName: cachedCall.toolName,
+                  arguments: cachedCall.arguments,
+                  status: "success",
+                  durationMs
+                });
+                toolCallMap.delete(toolUseId);
               }
-              
-              // 4. Обработка ошибок (error)
-              if (ev.type === "error") {
-                process.stderr.write(`[Агент: CLAUDE] Ошибка: ${ev.message}\n`);
-                if (logFilePath) {
-                  const timestamp = new Date().toISOString();
-                  const sanitized = sanitizeLogMessage(ev.message);
-                  fsSync.appendFileSync(logFilePath, `[${timestamp}] [CLAUDE] [ERROR] ${sanitized}\n`);
-                }
+
+              if (logFilePath) {
+                const timestamp = new Date().toISOString();
+                fsSync.appendFileSync(logFilePath, `[${timestamp}] [CLAUDE] [TOOL_RESULT] Инструмент ${toolName} вернул результат.\n`);
               }
-            } catch (e) {
-              // ignore
+            } else if (ev.kind === "result") {
+              finalResult = ev.result;
+            } else if (ev.kind === "error") {
+              process.stderr.write(`[Агент: CLAUDE] Ошибка: ${ev.message}\n`);
+              if (logFilePath) {
+                const timestamp = new Date().toISOString();
+                const sanitized = sanitizeLogMessage(ev.message);
+                fsSync.appendFileSync(logFilePath, `[${timestamp}] [CLAUDE] [ERROR] ${sanitized}\n`);
+              }
             }
           }
         } else {
