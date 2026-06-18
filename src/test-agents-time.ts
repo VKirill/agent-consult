@@ -1,11 +1,11 @@
 import { loadConfig, ensureAgentHomeDirs } from "./config.js";
 import { runConsultation } from "./consult-orchestrator.js";
 
-const question = `Как отрефакторить функцию \`queryLocalCLI\` в файле \`src/consult-orchestrator.ts\` нашего проекта для улучшения стабильности и производительности?
+const question = `Как оптимизировать обработку ошибок и ретраи при сетевых сбоях или таймаутах OpenRouter API в модуле \`src/openrouter-client.ts\` нашего проекта?
 Предложи улучшения по следующим направлениям:
-1. Оптимизация работы с таймерами (сейчас там два setTimeout и сложная логика resetOrExtendTimeout).
-2. Безопасность временных файлов промптов для grok (гарантированное удаление при любых сбоях, обработка ошибок удаления).
-3. Переход от \`exec\` к \`spawn\` (где применимо) или оптимизация стриминга stderr/stdout.
+1. Использование механизма Exponential Backoff с джиттером для ретраев при ошибках 429 (Rate Limit) и временных сетевых сбоях (502, 503, 504).
+2. Определение автоматического списка резервных моделей-синтезаторов (например, google/gemini-2.5-flash как fallback), если minimax/minimax-m3 возвращает ошибку или недоступен.
+3. Реализация AbortSignal для корректной отмены сетевых запросов при таймауте на уровне axios/fetch.
 Опиши архитектурные изменения и приведи пример улучшенного кода на TypeScript.`;
 
 async function benchmark() {

@@ -1,4 +1,4 @@
-import { setupAgentMcpConfig, ensureAgentHomeDirs, AGENT_HOMES_ROOT } from "./config.js";
+import { setupAgentMcpConfig, ensureAgentHomeDirs, AGENT_HOMES_ROOT, loadConfig, resolveGlobalHome } from "./config.js";
 import fs from "fs/promises";
 import path from "path";
 
@@ -12,6 +12,21 @@ async function testDynamicMcp() {
     { role: "marketer", agent: "mimo" }
   ];
 
+  const config = await loadConfig();
+  const mapping = config.role_mcp_mapping || {};
+
+  const globalClaudeJsonPath = path.join(resolveGlobalHome(), ".claude.json");
+  let globalServers: string[] = [];
+  try {
+    const globalData = await fs.readFile(globalClaudeJsonPath, "utf-8");
+    const globalJson = JSON.parse(globalData);
+    globalServers = Object.keys(globalJson.mcpServers || {});
+  } catch (err) {
+    // Игнорируем
+  }
+
+  const isServerAvailable = (name: string) => globalServers.includes(name) || name === "repowise" || name === "gitnexus";
+
   for (const tc of testCases) {
     console.log(`\nНастройка MCP для агента ${tc.agent} с ролью ${tc.role}...`);
     await setupAgentMcpConfig(tc.agent, tc.role);
@@ -23,17 +38,10 @@ async function testDynamicMcp() {
     const servers = Object.keys(json.mcpServers || {});
     console.log(`Зарегистрированные MCP-серверы: [${servers.join(", ")}]`);
 
-    // Проверяем соответствие
-    if (tc.role === "programmer") {
-      const match = servers.includes("gitnexus") && servers.includes("repowise") && servers.length === 2;
-      console.log(match ? "✅ Успешно: только gitnexus и repowise!" : "❌ Ошибка соответствия!");
-    } else if (tc.role === "web_architect") {
-      const match = servers.includes("gitnexus") && servers.includes("repowise") && servers.includes("vue-docs") && servers.includes("shadcn");
-      console.log(match ? "✅ Успешно: фронтенд-серверы подключены!" : "❌ Ошибка соответствия!");
-    } else if (tc.role === "marketer") {
-      const match = servers.includes("perplexity") || servers.includes("tavily");
-      console.log(match ? "✅ Успешно: маркетинговые инструменты поиска подключены!" : "❌ Ошибка соответствия!");
-    }
+    const expected = (mapping[tc.role] || mapping["general"] || []).filter(isServerAvailable);
+
+    const match = expected.every(s => servers.includes(s)) && servers.every(s => expected.includes(s));
+    console.log(match ? `✅ Успешно: все настроенные на хосте MCP-серверы для роли ${tc.role} на месте!` : `❌ Ошибка соответствия для роли ${tc.role}! Ожидалось: [${expected.join(", ")}], получено: [${servers.join(", ")}]`);
   }
 
   console.log("\nТест динамического MCP успешно завершен!");

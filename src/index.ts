@@ -204,12 +204,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             request_raw_responses: {
               type: "boolean",
-              default: false,
+              default: true,
               description: 
-                "CRITICAL: Do NOT set to true unless the user explicitly requested raw, unsynthesized answers. " +
-                "By default (false), the server performs advanced synthesis (Self-Realization) to consolidate all opinions, " +
-                "resolve conflicts, and return a single, coherent technical report. Setting this to true returns raw data " +
-                "from individual agents, bypassing the synthesizer and increasing cognitive load.",
+                "По умолчанию (true), сервер возвращает детальные ответы от каждого агента отдельно без выполнения общего синтеза, " +
+                "что позволяет получить полные, неискаженные ответы от всех участников консилиума. " +
+                "Установите в false, если требуется запустить синтезатор для получения единого резюме.",
             }
           },
           required: ["question"],
@@ -375,7 +374,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const customRolePrompt = args?.custom_role_prompt as string | undefined;
     
     let targetAgentsList = args?.agents as string[] | undefined;
-    let autoSkipSynthesis = !!(args?.request_raw_responses || args?.skip_synthesis);
+    let autoSkipSynthesis = args?.request_raw_responses !== false && args?.skip_synthesis !== false;
 
     if (args?.role !== undefined && (typeof args.role !== "string" || !/^[a-z0-9_]{1,64}$/.test(args.role))) {
       return {
