@@ -21,6 +21,12 @@ interface AgentClaudeConfig {
   permissions: { allow: string[] };
 }
 
+// Отдельная (от хоста ~/.grok) стабильная grok-личность агента.
+// Grok ротирует refresh-токен при обновлении; шаринг хостового токена с
+// песочницей разлогинивал пользователя. Агент логинится сюда своим
+// device-сеансом: HOME=GROK_IDENTITY_HOME grok login
+export const GROK_IDENTITY_HOME = path.join(path.dirname(AGENT_HOMES_ROOT), "grok-identity");
+
 export function getAgentHome(agentName: string, sessionId?: string): string {
   const safeAgentName = agentName.replace(/[^a-zA-Z0-9_\-]/g, "");
   if (!safeAgentName) {
@@ -363,8 +369,10 @@ export async function ensureAgentHomeDirs(sessionId?: string): Promise<void> {
 
     // 6. Для grok (только авторизация + чистый config.toml)
     const copyGrokAuth = async (targetHome: string) => {
-      await linkCredentialSafe(path.join(GLOBAL_HOME, ".grok", "auth.json"), path.join(targetHome, ".grok", "auth.json"));
-      await linkCredentialSafe(path.join(GLOBAL_HOME, ".grok", "agent_id"), path.join(targetHome, ".grok", "agent_id"));
+      // Источник — ОТДЕЛЬНАЯ grok-личность агента, НЕ хостовый ~/.grok,
+      // иначе ротация токена в песочнице разлогинивает пользователя.
+      await linkCredentialSafe(path.join(GROK_IDENTITY_HOME, ".grok", "auth.json"), path.join(targetHome, ".grok", "auth.json"));
+      await linkCredentialSafe(path.join(GROK_IDENTITY_HOME, ".grok", "agent_id"), path.join(targetHome, ".grok", "agent_id"));
     };
     const grokHome = getAgentHome("grok", sessionId);
     await copyGrokAuth(grokHome);
@@ -413,8 +421,10 @@ export async function syncAgentCredentialsBack(sessionId: string): Promise<void>
     await syncClaudeAuth(mimoHome);
 
     const grokHome = getAgentHome("grok", sessionId);
-    await linkCredentialSafe(path.join(grokHome, ".grok", "auth.json"), path.join(GLOBAL_HOME, ".grok", "auth.json"));
-    await linkCredentialSafe(path.join(grokHome, ".grok", "agent_id"), path.join(GLOBAL_HOME, ".grok", "agent_id"));
+    // Обратная синхронизация grok идёт в отдельную grok-личность агента,
+    // НЕ в хостовый ~/.grok — хост-логин пользователя не трогаем.
+    await linkCredentialSafe(path.join(grokHome, ".grok", "auth.json"), path.join(GROK_IDENTITY_HOME, ".grok", "auth.json"));
+    await linkCredentialSafe(path.join(grokHome, ".grok", "agent_id"), path.join(GROK_IDENTITY_HOME, ".grok", "agent_id"));
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     process.stderr.write(`[Config] Ошибка при обратной синхронизации токенов: ${msg}\n`);
