@@ -87,4 +87,59 @@ describe("queryLocalCLI (characterization, mock spawn)", () => {
       vi.useRealTimers();
     }
   });
+
+  it("error-событие процесса -> reject с ошибкой", async () => {
+    const p = queryLocalCLI("gemini", cfg("x"), "sys", "вопрос", 1000);
+    const c = getChild();
+    await new Promise((r) => setImmediate(r));
+    c.emit("error", new Error("spawn ENOENT"));
+    await expect(p).rejects.toThrow(/spawn ENOENT/);
+  });
+
+  it("интерактивный auth в stdout -> reject (SIGKILL)", async () => {
+    const p = queryLocalCLI("gemini", cfg("x"), "sys", "вопрос", 1000);
+    const c = getChild();
+    await new Promise((r) => setImmediate(r));
+    c.stdout.emit("data", Buffer.from("To sign in, open this URL: https://auth.example/login"));
+    await expect(p).rejects.toThrow(/не авторизован/);
+  });
+
+  it("превышение лимита 10MB stdout -> reject", async () => {
+    const p = queryLocalCLI("gemini", cfg("x"), "sys", "вопрос", 1000);
+    const c = getChild();
+    await new Promise((r) => setImmediate(r));
+    c.stdout.emit("data", Buffer.alloc(10 * 1024 * 1024 + 1, 0x20));
+    await expect(p).rejects.toThrow(/Превышен лимит вывода/);
+  });
+
+  it("idle при активном MCP-инструменте -> сообщение про выполнение инструмента", async () => {
+    vi.useFakeTimers();
+    try {
+      const p = queryLocalCLI("gemini", cfg("x"), "sys", "вопрос", 1000);
+      p.catch(() => {});
+      const c = getChild();
+      // активность инструмента -> idle переключается на MCP_TOOL_IDLE_TIMEOUT_MS (150000)
+      c.stdout.emit("data", Buffer.from("calling tool gitnexus"));
+      await vi.advanceTimersByTimeAsync(150_001);
+      await expect(p).rejects.toThrow(/активное выполнение MCP-инструмента/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("kill-escalation: SIGTERM, затем через 3с SIGKILL группе", async () => {
+    vi.useFakeTimers();
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    try {
+      const p = queryLocalCLI("gemini", cfg("x"), "sys", "вопрос", 1000);
+      p.catch(() => {});
+      await vi.advanceTimersByTimeAsync(120_001); // idle -> terminate SIGTERM
+      killSpy.mockClear();
+      await vi.advanceTimersByTimeAsync(3_001); // эскалация -> SIGKILL
+      expect(killSpy).toHaveBeenCalledWith(-999999, "SIGKILL");
+    } finally {
+      killSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
 });
