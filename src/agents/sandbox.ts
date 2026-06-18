@@ -4,6 +4,7 @@ import { resolveGlobalHome, AGENT_HOMES_ROOT, WORKSPACE_ROOT, SERVER_ROOT } from
 import { loadConfig } from "../core/config.js";
 import { atomicWriteFile, linkCredentialSafe } from "../utils/fs.js";
 import { CODEX_CONSULT_SANDBOX_MODE, assertCodexSandboxMode } from "../core/constants.js";
+import { cleanAndValidateModel } from "./cli/invocation.js";
 import {
   McpServerConfig,
   ClaudeGlobalConfig,
@@ -52,6 +53,13 @@ export function getAgentHome(agentName: string, sessionId?: string): string {
   return resolved;
 }
 
+// Единственный источник истины по моделям — config.json. Чистим
+// провайдерский префикс под формат, который ждёт конкретный CLI в config.toml.
+async function modelForAgent(agentName: string, fallback: string): Promise<string> {
+  const config = await loadConfig();
+  return cleanAndValidateModel(config.agents?.[agentName]?.model || fallback);
+}
+
 async function setupGrokConfig(agentHome: string, allowedServers: string[]): Promise<void> {
   const GLOBAL_HOME = resolveGlobalHome();
   const globalClaudeJsonPath = path.join(GLOBAL_HOME, ".claude.json");
@@ -66,7 +74,8 @@ async function setupGrokConfig(agentHome: string, allowedServers: string[]): Pro
       // Игнорируем
     }
 
-    let tomlContent = `[cli]\ninstaller = "internal"\n\n[models]\ndefault = "grok-composer-2.5-fast"\n\n`;
+    const grokModel = await modelForAgent("grok", "xai/grok-composer-2.5-fast");
+    let tomlContent = `[cli]\ninstaller = "internal"\n\n[models]\ndefault = "${grokModel}"\n\n`;
     const entries = resolveMcpServerEntries(allowedServers, globalJson, GLOBAL_HOME);
     tomlContent += serializeMcpServersToml(entries, "enabled = true");
 
@@ -92,7 +101,8 @@ async function setupCodexConfig(agentHome: string, allowedServers: string[]): Pr
     }
 
     assertCodexSandboxMode(CODEX_CONSULT_SANDBOX_MODE);
-    let tomlContent = `model = "gpt-5.5"\napproval_policy = "on-request"\nsandbox_mode = "${CODEX_CONSULT_SANDBOX_MODE}"\n\n`;
+    const codexModel = await modelForAgent("codex", "openai/gpt-5.5");
+    let tomlContent = `model = "${codexModel}"\napproval_policy = "on-request"\nsandbox_mode = "${CODEX_CONSULT_SANDBOX_MODE}"\n\n`;
     const entries = resolveMcpServerEntries(allowedServers, globalJson, GLOBAL_HOME);
     tomlContent += serializeMcpServersToml(entries, "startup_timeout_sec = 30");
 
@@ -332,7 +342,8 @@ export async function ensureAgentHomeDirs(sessionId?: string): Promise<void> {
     await copyGeminiAuth(agyHome);
     const agyConfigPath = path.join(agyHome, ".config", "antigravity", "config.toml");
     try {
-      await atomicWriteFile(agyConfigPath, `model = "gemini-3.5-flash"\n`);
+      const agyModel = await modelForAgent("agy", "google/gemini-3.5-flash");
+      await atomicWriteFile(agyConfigPath, `model = "${agyModel}"\n`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       process.stderr.write(`Ошибка генерации config.toml для Agy: ${msg}\n`);
