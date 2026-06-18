@@ -9,7 +9,8 @@
 | Что | Где задаётся |
 |-----|--------------|
 | Модель агента | `config.json → agents.<имя>.model` |
-| Глубина рассуждений | `config.json → agents.<имя>.reasoning` (`enable`, `reasoning_effort`) |
+| Глубина рассуждений (уровень) | `config.json → agents.<имя>.reasoning.reasoning_effort` (`low\|medium\|high\|xhigh\|max`) |
+| CLI-флаг глубины рассуждений | `config.json → agents.<имя>.reasoning.flag` (шаблон, `{effort}` подставляется) |
 | Персональный системный префикс | `config.json → agents.<имя>.system_prefix` |
 | Модель синтезатора | `config.json → synthesis.model` |
 
@@ -19,17 +20,18 @@
 
 ## Как агенты запускаются (карта вариантов)
 
-Каждый агент — это локальный CLI. Модель передаётся в его «родном» формате, глубина
-рассуждений — «родным» флагом. Эта механика per-CLI зашита в `src/agents/cli/invocation.ts`
-(`buildCliArgs`) и `resolveAgentBinInfo` — менять её нужно только при **добавлении нового CLI-инструмента**,
-а не при смене версии модели.
+Каждый агент — это локальный CLI. Модель передаётся в его «родном» формате. **Флаг
+глубины рассуждений теперь задаётся в `config.json`** (`reasoning.flag`, шаблон с `{effort}`)
+— его можно править руками, не трогая код. Базовый скелет вызова CLI (`exec -`, `run --pure`
+и т.п.) и путь к бинарю остаются в `src/agents/cli/invocation.ts` / `resolveAgentBinInfo`
+— их нужно менять только при **добавлении нового CLI-инструмента**.
 
-| Агент | CLI (bin) | Формат модели | Флаг глубины рассуждений | Промт |
-|-------|-----------|---------------|---------------------------|-------|
-| **codex** | `codex` | без префикса (`openai/gpt-5.5` → `gpt-5.5`) | `-c model_reasoning_effort=<effort>` | stdin |
-| **claude** | `claude` | алиас (`sonnet`/`opus`/`haiku`) | `--effort <low\|medium\|high\|xhigh\|max>` | stdin |
+| Агент | CLI (bin) | Формат модели | `reasoning.flag` (в config.json) | Промт |
+|-------|-----------|---------------|-----------------------------------|-------|
+| **codex** | `codex` | без префикса (`openai/gpt-5.5` → `gpt-5.5`) | `["-c", "model_reasoning_effort={effort}"]` | stdin |
+| **claude** | `claude` | алиас (`sonnet`/`opus`/`haiku`) | `["--effort", "{effort}"]` | stdin |
 | **agy** | `agy` (antigravity) | модель в `config.toml` (без `--model` в args) | — | stdin |
-| **mimo** | `mimo` (mimocode) | полный provider/model (`xiaomi/mimo-v2.5-pro`) | `--variant <high\|max\|minimal>` | stdin |
+| **mimo** | `mimo` (mimocode) | полный provider/model (`xiaomi/mimo-v2.5-pro`) | `["--variant", "{effort}"]` | stdin |
 | **grok** | `grok` | без префикса; `--model`, если не дефолт | — | prompt-file |
 
 Текущие значения (`config.json`):

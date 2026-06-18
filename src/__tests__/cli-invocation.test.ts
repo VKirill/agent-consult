@@ -26,7 +26,7 @@ describe("buildCliArgs", () => {
     ]);
   });
   it("codex с reasoning добавляет effort", () => {
-    expect(buildCliArgs("codex", "gpt-5.5", { enable: true, reasoning_effort: "high" }, "")).toEqual([
+    expect(buildCliArgs("codex", "gpt-5.5", { enable: true, reasoning_effort: "high", flag: ["-c", "model_reasoning_effort={effort}"] }, "")).toEqual([
       "exec", "-", "--model", "gpt-5.5", "-c", "model_reasoning_effort=high"
     ]);
   });
@@ -37,7 +37,7 @@ describe("buildCliArgs", () => {
     expect(buildCliArgs("claude", "opus", undefined, "")).toContain("opus");
   });
   it("claude с reasoning -> добавляет --effort <level>", () => {
-    const args = buildCliArgs("claude", "opus", { enable: true, reasoning_effort: "high" }, "");
+    const args = buildCliArgs("claude", "opus", { enable: true, reasoning_effort: "high", flag: ["--effort", "{effort}"] }, "");
     expect(args).toContain("--effort");
     expect(args[args.indexOf("--effort") + 1]).toBe("high");
   });
@@ -54,7 +54,7 @@ describe("buildCliArgs", () => {
     ]);
   });
   it("mimo с reasoning -> добавляет --variant <effort>", () => {
-    expect(buildCliArgs("mimo", "mimo-v2.5-pro", { enable: true, reasoning_effort: "high" }, "", "xiaomi/mimo-v2.5-pro")).toEqual([
+    expect(buildCliArgs("mimo", "mimo-v2.5-pro", { enable: true, reasoning_effort: "high", flag: ["--variant", "{effort}"] }, "", "xiaomi/mimo-v2.5-pro")).toEqual([
       "run", "--pure", "--model", "xiaomi/mimo-v2.5-pro", "--variant", "high"
     ]);
   });

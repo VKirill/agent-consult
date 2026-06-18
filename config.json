@@ -15,7 +15,8 @@
       "system_prefix": "Ты — агент Codex. Твоя сила в алгоритмической точности, глубоком понимании кода и логическом анализе.",
       "reasoning": {
         "enable": true,
-        "reasoning_effort": "high"
+        "reasoning_effort": "high",
+        "flag": ["-c", "model_reasoning_effort={effort}"]
       }
     },
     "claude": {
@@ -23,7 +24,8 @@
       "system_prefix": "Ты — агент Claude. Твоя сила в глубоком анализе, отличном стиле изложения текста на русском языке и структурированности ответов.",
       "reasoning": {
         "enable": true,
-        "reasoning_effort": "high"
+        "reasoning_effort": "high",
+        "flag": ["--effort", "{effort}"]
       }
     },
     "agy": {
@@ -39,7 +41,8 @@
       "system_prefix": "Ты — агент Mimo. Твоя сила в краткости, выделении сути (key takeaways) и критическом подходе к задачам.",
       "reasoning": {
         "enable": true,
-        "reasoning_effort": "high"
+        "reasoning_effort": "high",
+        "flag": ["--variant", "{effort}"]
       }
     },
     "grok": {

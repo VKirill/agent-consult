@@ -2,14 +2,20 @@ import fs from "fs/promises";
 import path from "path";
 import { SERVER_ROOT } from "./paths.js";
 
+export interface AgentReasoning {
+  enable: boolean;
+  reasoning_effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  // Шаблон CLI-флага глубины рассуждений; {effort} подставляется значением
+  // reasoning_effort. Напр.: ["-c", "model_reasoning_effort={effort}"] (codex),
+  // ["--effort", "{effort}"] (claude), ["--variant", "{effort}"] (mimo).
+  // Нет flag -> агент запускается без флага reasoning.
+  flag?: string[];
+}
+
 export interface AgentConfig {
   model: string;
   system_prefix?: string;
-  reasoning?: {
-    enable: boolean;
-    reasoning_effort?: "low" | "medium" | "high";
-  };
-  fallback_models?: string[];
+  reasoning?: AgentReasoning;
 }
 
 export interface AppConfig {

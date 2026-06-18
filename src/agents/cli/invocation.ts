@@ -29,6 +29,19 @@ export function validateProviderModel(model: string): string {
 export interface CliReasoning {
   enable?: boolean;
   reasoning_effort?: string;
+  // Шаблон CLI-флага глубины рассуждений из config.json; {effort} подставляется.
+  flag?: string[];
+}
+
+// Рендерит флаг reasoning из конфига (а не хардкодит per-agent).
+// Нет flag / выключено / нет effort -> пустой список (агент без флага reasoning).
+export function renderReasoningArgs(reasoning: CliReasoning | undefined): string[] {
+  if (!reasoning?.enable || !reasoning.reasoning_effort || !Array.isArray(reasoning.flag)) {
+    return [];
+  }
+  const effort = reasoning.reasoning_effort;
+  if (!/^[a-z]+$/.test(effort)) return [];
+  return reasoning.flag.map((part) => part.replace("{effort}", effort));
 }
 
 export function buildCliArgs(
@@ -40,24 +53,17 @@ export function buildCliArgs(
 ): string[] {
   switch (agentName) {
     case "codex": {
-      const args = ["exec", "-", "--model", cleanModel];
-      if (reasoning?.enable) {
-        const effort = reasoning.reasoning_effort || "medium";
-        args.push("-c", `model_reasoning_effort=${effort}`);
-      }
-      return args;
+      return ["exec", "-", "--model", cleanModel, ...renderReasoningArgs(reasoning)];
     }
     case "claude": {
       const modelArg =
         cleanModel === "sonnet" || cleanModel === "opus" || cleanModel === "haiku"
           ? cleanModel
           : "sonnet";
-      const args = ["-p", "--model", modelArg, "--output-format", "stream-json", "--verbose", "--permission-mode", "plan"];
-      // claude CLI: глубина рассуждений через --effort (low|medium|high|xhigh|max).
-      if (reasoning?.enable && reasoning.reasoning_effort && /^[a-z]+$/.test(reasoning.reasoning_effort)) {
-        args.push("--effort", reasoning.reasoning_effort);
-      }
-      return args;
+      return [
+        "-p", "--model", modelArg, "--output-format", "stream-json", "--verbose", "--permission-mode", "plan",
+        ...renderReasoningArgs(reasoning)
+      ];
     }
     case "agy":
     case "gemini":
@@ -69,10 +75,7 @@ export function buildCliArgs(
       if (rawModel) {
         args.push("--model", validateProviderModel(rawModel));
       }
-      // mimo: глубина рассуждений задаётся флагом --variant (high|max|minimal).
-      if (reasoning?.enable && reasoning.reasoning_effort && /^[a-z]+$/.test(reasoning.reasoning_effort)) {
-        args.push("--variant", reasoning.reasoning_effort);
-      }
+      args.push(...renderReasoningArgs(reasoning));
       return args;
     }
     case "grok": {
@@ -80,6 +83,7 @@ export function buildCliArgs(
       if (cleanModel && cleanModel !== "grok") {
         args.push("--model", cleanModel);
       }
+      args.push(...renderReasoningArgs(reasoning));
       return args;
     }
     default:
