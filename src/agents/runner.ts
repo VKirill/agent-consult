@@ -491,18 +491,9 @@ export async function queryLocalCLI(
         }
 
         if (agentName === "claude" && stdoutBuffer.trim()) {
-          try {
-            let jsonStr = stdoutBuffer.trim();
-            const lastBrace = jsonStr.lastIndexOf("}");
-            if (lastBrace !== -1) {
-              jsonStr = jsonStr.substring(0, lastBrace + 1);
-            }
-            const ev = JSON.parse(jsonStr);
-            if (ev.type === "result") {
-              finalResult = ev.result ?? "";
-            }
-          } catch (e) {
-            // ignore
+          const ev = parseClaudeStreamLine(stdoutBuffer);
+          if (ev && ev.kind === "result") {
+            finalResult = ev.result;
           }
         }
 
