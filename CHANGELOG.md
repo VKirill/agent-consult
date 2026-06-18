@@ -2,6 +2,25 @@
 
 All notable changes to the "Agent Consult" project are documented in this file, detailing the rationale behind each technical decision.
 
+## [1.4.0] — 2026-06-18
+
+Централизация всех настроек выбора модели и запуска в `config.json` — чтобы новую модель/вариант запуска можно было менять руками, без правок кода.
+
+### Changed
+*   **`config.json` — единственный источник истины по моделям**: генерация `config.toml` песочниц в `src/agents/sandbox.ts` теперь читает модель каждого агента из `config.json` (`modelForAgent()`) вместо захардкоженных литералов (`codex`/`grok`/`agy`).
+*   **Reasoning-флаги перенесены в `config.json`**: глубина рассуждений задаётся per-agent через `reasoning.flag` (шаблон с `{effort}`) — `codex` `["-c","model_reasoning_effort={effort}"]`, `claude` `["--effort","{effort}"]`, `mimo` `["--variant","{effort}"]`. `buildCliArgs` рендерит флаг из конфига (`renderReasoningArgs`), хардкод `-c`/`--effort`/`--variant` удалён. Уровни effort расширены до `low|medium|high|xhigh|max`.
+
+### Fixed
+*   **Дрейф модели `agy`**: раньше модель бралась ТОЛЬКО из захардкоженного `config.toml` (`gemini-3.5-flash`), и смена в `config.json` не работала — теперь работает.
+
+### Added
+*   **`docs/models.md`** — единая карта запуска (агент → CLI → формат модели → `reasoning.flag` → ввод промта) и инструкции «как сменить/добавить модель».
+
+### Removed
+*   Мёртвое поле `fallback_models` из типа `AgentConfig` (fallback-цепочки удалены в 1.3.0).
+
+---
+
 ## [1.3.0] — 2026-06-18
 
 ### Added
