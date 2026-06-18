@@ -1,4 +1,4 @@
-export const LOCAL_AGENTS = ["codex", "claude", "agy", "gemini", "mimo", "grok"];
+export const LOCAL_AGENTS = ["codex", "claude", "agy", "mimo", "grok"];
 
 // Единственный источник истины для sandbox_mode Codex CLI.
 // Невалидное значение здесь = падение CLI при старте (инцидент с "workspace-read").

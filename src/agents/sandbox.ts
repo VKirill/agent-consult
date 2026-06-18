@@ -238,7 +238,7 @@ export async function ensureAgentHomeDirs(sessionId?: string): Promise<void> {
     process.stderr.write(`Ошибка при создании корневой папки агентов: ${msg}\n`);
   }
 
-  const agents = ["codex", "claude", "agy", "gemini", "mimo", "grok", "synthesis"];
+  const agents = ["codex", "claude", "agy", "mimo", "grok", "synthesis"];
   for (const agent of agents) {
     const agentHomePath = getAgentHome(agent, sessionId);
     const agentSkillsPath = path.join(agentHomePath, "skills");
@@ -338,16 +338,7 @@ export async function ensureAgentHomeDirs(sessionId?: string): Promise<void> {
       process.stderr.write(`Ошибка генерации config.toml для Agy: ${msg}\n`);
     }
 
-    // 4. Для gemini (только авторизация + чистый конфиг модели)
-    const geminiHome = getAgentHome("gemini", sessionId);
-    await copyGeminiAuth(geminiHome);
-    const geminiConfigPath = path.join(geminiHome, ".config", "antigravity", "config.toml");
-    try {
-      await atomicWriteFile(geminiConfigPath, `model = "gemini-2.5-pro"\n`);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`Ошибка генерации config.toml для Gemini: ${msg}\n`);
-    }
+    // (gemini-агент отключён — отдельный home не создаём)
 
     // 5. Для mimo (только авторизация + чистый config.json)
     const mimoHome = getAgentHome("mimo", sessionId);
@@ -419,9 +410,6 @@ export async function syncAgentCredentialsBack(sessionId: string): Promise<void>
 
     const agyHome = getAgentHome("agy", sessionId);
     await syncGeminiAuth(agyHome);
-
-    const geminiHome = getAgentHome("gemini", sessionId);
-    await syncGeminiAuth(geminiHome);
 
     const mimoHome = getAgentHome("mimo", sessionId);
     await syncClaudeAuth(mimoHome);

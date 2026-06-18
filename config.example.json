@@ -34,14 +34,6 @@
         "reasoning_effort": "medium"
       }
     },
-    "gemini": {
-      "model": "google/gemini-2.5-pro",
-      "system_prefix": "Ты — агент Gemini. Твоя сила в мультимодальном мышлении, быстром поиске фактов и широком охвате информации.",
-      "reasoning": {
-        "enable": false,
-        "reasoning_effort": "medium"
-      }
-    },
     "mimo": {
       "model": "xiaomi/mimo-v2.5-pro",
       "system_prefix": "Ты — агент Mimo. Твоя сила в краткости, выделении сути (key takeaways) и критическом подходе к задачам.",
@@ -58,5 +50,16 @@
       "enable": false,
       "reasoning_effort": "medium"
     }
+  },
+  "role_mcp_mapping": {
+    "programmer": ["gitnexus", "repowise", "context7", "github"],
+    "web_architect": ["gitnexus", "repowise", "vue-docs", "shadcn", "nuxt-ui", "context7", "playwright", "lighthouse", "chrome-devtools"],
+    "system_architect": ["gitnexus", "repowise", "postgres"],
+    "app_architect": ["gitnexus", "repowise", "postgres", "context7", "github"],
+    "marketer": ["perplexity", "lighthouse"],
+    "security_auditor": ["gitnexus", "repowise", "perplexity", "sentinel", "skylos", "github"],
+    "qa_engineer": ["gitnexus", "repowise", "context7", "playwright", "github", "chrome-devtools"],
+    "data_engineer": ["gitnexus", "repowise", "postgres"],
+    "general": ["gitnexus", "repowise", "context7", "github", "perplexity"]
   }
 }

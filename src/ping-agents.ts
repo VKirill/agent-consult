@@ -7,7 +7,7 @@ async function pingAllCLI() {
   const config = await loadConfig();
 
   const question = "Ответь ровно одним словом: PONG.";
-  const agents = ["codex", "claude", "agy", "gemini", "mimo", "grok"];
+  const agents = ["codex", "claude", "agy", "mimo", "grok"];
 
   console.log(`Запускаем опрос через локальные CLI для агентов: ${agents.map(a => a.toUpperCase()).join(", ")}`);
   

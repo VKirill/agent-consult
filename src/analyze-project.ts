@@ -23,7 +23,7 @@ async function runAnalysis() {
     "Ответь структурировано на русском языке. Для каждого замечания укажи файл, характер проблемы (P0/P1/P2) и код до/после.";
 
   const role = "programmer";
-  const testAgents = ["codex", "claude", "agy", "gemini", "mimo"];
+  const testAgents = ["codex", "claude", "agy", "mimo"];
 
   console.log(`Запуск консилиума для анализа проекта...`);
   

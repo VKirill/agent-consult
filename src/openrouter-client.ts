@@ -218,23 +218,11 @@ async function querySingleModelWithRetries(
  * Дефолтные fallback-цепочки по семействам моделей.
  * Ключ — подстрока основной модели; значение — резервные модели по убчанию.
  */
-const DEFAULT_FALLBACK_CHAINS: Record<string, string[]> = {
-  "minimax": ["google/gemini-2.5-flash", "anthropic/claude-sonnet-4"],
-  "xiaomi": ["google/gemini-2.5-flash", "meta-llama/llama-3.3-70b-instruct"],
-  "grok": ["anthropic/claude-sonnet-4", "openai/gpt-5.5"],
-};
-
 /**
- * Строит цепочку моделей: основная + fallback из конфига или дефолтные.
+ * Возвращает только основную модель — fallback-цепочки отключены
+ * (используем строго CLI-подписки / заданную модель, без облачных подмен).
  */
-function buildModelChain(modelName: string, fallbackModels?: string[]): string[] {
-  const explicit = fallbackModels ?? [];
-  if (explicit.length > 0) return [modelName, ...explicit];
-
-  for (const [key, defaults] of Object.entries(DEFAULT_FALLBACK_CHAINS)) {
-    if (modelName.includes(key)) return [modelName, ...defaults];
-  }
-
+function buildModelChain(modelName: string): string[] {
   return [modelName];
 }
 
@@ -256,7 +244,7 @@ export async function queryOpenRouter(
     throw new Error("API ключ OpenRouter не задан. Пожалуйста, укажите OPENROUTER_API_KEY в окружении или файле config.json.");
   }
 
-  const modelsChain = buildModelChain(modelName, agentConfig.fallback_models);
+  const modelsChain = buildModelChain(modelName);
 
   let lastError: any;
 
