@@ -86,7 +86,7 @@ export async function queryLocalCLI(
         return;
       }
 
-      args = buildCliArgs(agentName, cleanModel, agentConfig.reasoning, tempPromptFile);
+      args = buildCliArgs(agentName, cleanModel, agentConfig.reasoning, tempPromptFile, model);
 
       if (!cachedCleanPath) {
         const rawPath = process.env.PATH || "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";

@@ -40,8 +40,13 @@ describe("buildCliArgs", () => {
     expect(buildCliArgs("agy", "x", undefined, "")).toEqual(["-p", "-"]);
     expect(buildCliArgs("gemini", "x", undefined, "")).toEqual(["-p", "-"]);
   });
-  it("mimo -> run --pure", () => {
+  it("mimo без модели -> run --pure", () => {
     expect(buildCliArgs("mimo", "x", undefined, "")).toEqual(["run", "--pure"]);
+  });
+  it("mimo с моделью -> добавляет --model полный provider/model", () => {
+    expect(buildCliArgs("mimo", "mimo-v2.5-pro", undefined, "", "xiaomi/mimo-v2.5-pro")).toEqual([
+      "run", "--pure", "--model", "xiaomi/mimo-v2.5-pro"
+    ]);
   });
   it("grok передаёт prompt-file и модель, кроме дефолтной 'grok'", () => {
     expect(buildCliArgs("grok", "grok-composer-2.5-fast", undefined, "/tmp/p.txt")).toEqual([

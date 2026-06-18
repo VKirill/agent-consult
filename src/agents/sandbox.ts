@@ -352,6 +352,12 @@ export async function ensureAgentHomeDirs(sessionId?: string): Promise<void> {
     // 5. Для mimo (только авторизация + чистый config.json)
     const mimoHome = getAgentHome("mimo", sessionId);
     await copyClaudeAuth(mimoHome);
+    // Ключ подписки mimocode (провайдер xiaomi, type api — не ротируется),
+    // без него mimo-v2.5-pro отдаёт "Invalid API Key".
+    await linkCredentialSafe(
+      path.join(GLOBAL_HOME, ".local", "share", "mimocode", "auth.json"),
+      path.join(mimoHome, ".local", "share", "mimocode", "auth.json")
+    );
     const mimoConfigPath = path.join(mimoHome, ".config", "mimocode", "mimocode.json");
     const mimoConfigContent = JSON.stringify({
       "$schema": "https://opencode.ai/config.json",

@@ -7,6 +7,9 @@ import path from "path";
 
 const MODEL_PREFIX_RE = /^(openai|anthropic|google|xiaomi|xai)\//;
 const SAFE_MODEL_RE = /^[a-zA-Z0-9][a-zA-Z0-9_\-\.]{0,63}$/;
+// mimo CLI ждёт модель в формате provider/model (например xiaomi/mimo-v2.5-pro),
+// поэтому слэш разрешён — но всё ещё валидируем против инъекций.
+const PROVIDER_MODEL_RE = /^[a-zA-Z0-9][a-zA-Z0-9_\-\.\/]{0,80}$/;
 
 export function cleanAndValidateModel(model: string): string {
   const cleanModel = model.replace(MODEL_PREFIX_RE, "");
@@ -14,6 +17,13 @@ export function cleanAndValidateModel(model: string): string {
     throw new Error(`Критическая уязвимость: Некорректное имя модели '${cleanModel}'`);
   }
   return cleanModel;
+}
+
+export function validateProviderModel(model: string): string {
+  if (!PROVIDER_MODEL_RE.test(model)) {
+    throw new Error(`Некорректное имя модели (provider/model): '${model}'`);
+  }
+  return model;
 }
 
 export interface CliReasoning {
@@ -25,7 +35,8 @@ export function buildCliArgs(
   agentName: string,
   cleanModel: string,
   reasoning: CliReasoning | undefined,
-  tempPromptFile: string
+  tempPromptFile: string,
+  rawModel?: string
 ): string[] {
   switch (agentName) {
     case "codex": {
@@ -46,8 +57,15 @@ export function buildCliArgs(
     case "agy":
     case "gemini":
       return ["-p", "-"];
-    case "mimo":
-      return ["run", "--pure"];
+    case "mimo": {
+      const args = ["run", "--pure"];
+      // Без --model mimo уходит в бесплатный "mimo-auto" (403 Illegal access);
+      // передаём полный provider/model подписки (например xiaomi/mimo-v2.5-pro).
+      if (rawModel) {
+        args.push("--model", validateProviderModel(rawModel));
+      }
+      return args;
+    }
     case "grok": {
       const args = ["--no-memory", "--permission-mode", "auto", "--prompt-file", tempPromptFile];
       if (cleanModel && cleanModel !== "grok") {
