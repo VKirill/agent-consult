@@ -52,7 +52,12 @@ export function buildCliArgs(
         cleanModel === "sonnet" || cleanModel === "opus" || cleanModel === "haiku"
           ? cleanModel
           : "sonnet";
-      return ["-p", "--model", modelArg, "--output-format", "stream-json", "--verbose", "--permission-mode", "plan"];
+      const args = ["-p", "--model", modelArg, "--output-format", "stream-json", "--verbose", "--permission-mode", "plan"];
+      // claude CLI: глубина рассуждений через --effort (low|medium|high|xhigh|max).
+      if (reasoning?.enable && reasoning.reasoning_effort && /^[a-z]+$/.test(reasoning.reasoning_effort)) {
+        args.push("--effort", reasoning.reasoning_effort);
+      }
+      return args;
     }
     case "agy":
     case "gemini":

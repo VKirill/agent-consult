@@ -36,6 +36,11 @@ describe("buildCliArgs", () => {
     ]);
     expect(buildCliArgs("claude", "opus", undefined, "")).toContain("opus");
   });
+  it("claude с reasoning -> добавляет --effort <level>", () => {
+    const args = buildCliArgs("claude", "opus", { enable: true, reasoning_effort: "high" }, "");
+    expect(args).toContain("--effort");
+    expect(args[args.indexOf("--effort") + 1]).toBe("high");
+  });
   it("agy/gemini -> -p -", () => {
     expect(buildCliArgs("agy", "x", undefined, "")).toEqual(["-p", "-"]);
     expect(buildCliArgs("gemini", "x", undefined, "")).toEqual(["-p", "-"]);
