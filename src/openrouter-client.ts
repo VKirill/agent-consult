@@ -293,24 +293,38 @@ export async function queryOpenRouter(
   throw lastError || new Error("Все модели в цепочке fallback завершились сбоем.");
 }
 
+export type LivenessReason = "ok" | "missing_key" | "unauthorized" | "network";
+
+export interface LivenessResult {
+  ok: boolean;
+  reason: LivenessReason;
+}
+
 /**
- * Проверяет жизнеспособность (liveness) подключения к OpenRouter
+ * Проверяет реальную авторизацию в OpenRouter.
+ * Бьёт в /api/v1/auth/key (требует валидный ключ), а НЕ в публичный /models —
+ * иначе проверка проходила бы с любым мусорным ключом (ложный «✅ Доступен»).
  */
-export async function checkOpenRouterLiveness(apiKey: string): Promise<boolean> {
-  if (!apiKey || apiKey === "YOUR_OPENROUTER_API_KEY_HERE") return false;
+export async function checkOpenRouterLiveness(apiKey: string): Promise<LivenessResult> {
+  if (!apiKey || apiKey.includes("YOUR_")) {
+    return { ok: false, reason: "missing_key" };
+  }
 
   try {
-    const response = await fetch("https://openrouter.ai/api/v1/models", {
+    const response = await fetch("https://openrouter.ai/api/v1/auth/key", {
       method: "GET",
       headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json"
+        "Authorization": `Bearer ${apiKey}`
       },
       signal: AbortSignal.timeout(10_000)
     });
-    return response.ok;
+    if (response.ok) return { ok: true, reason: "ok" };
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, reason: "unauthorized" };
+    }
+    return { ok: false, reason: "network" };
   } catch (err) {
     process.stderr.write(`[Liveness Check] Ошибка: ${err instanceof Error ? err.message : String(err)}\n`);
-    return false;
+    return { ok: false, reason: "network" };
   }
 }

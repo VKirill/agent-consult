@@ -296,11 +296,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   // 2. Проверка статуса
   if (name === "check_agents_status") {
     const config = await loadConfig();
-    const isAlive = await checkOpenRouterLiveness(config.openrouter_api_key);
+    const liveness = await checkOpenRouterLiveness(config.openrouter_api_key);
+    const livenessLabel = liveness.ok
+      ? "✅ Доступен"
+      : liveness.reason === "missing_key"
+        ? "❌ API-ключ не задан"
+        : liveness.reason === "unauthorized"
+          ? "❌ Неверный API-ключ"
+          : "❌ Ошибка сети / подключения";
     const doActivePing = !!args?.ping;
     
     let statusText = `### Статус MCP-сервера "Агент Консалт":\n\n`;
-    statusText += `- **Связь с OpenRouter**: ${isAlive ? "✅ Доступен" : "❌ Ошибка подключения / неверный API-ключ"}\n`;
+    statusText += `- **Связь с OpenRouter**: ${livenessLabel}\n`;
     statusText += `- **Таймаут по умолчанию**: ${config.timeout_ms} мс (${config.timeout_ms / 1000} сек)\n`;
     statusText += `- **Количество попыток (retries)**: ${config.retry_attempts}\n\n`;
     

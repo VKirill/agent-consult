@@ -4,28 +4,12 @@ import { resolveGlobalHome, AGENT_HOMES_ROOT, WORKSPACE_ROOT, SERVER_ROOT } from
 import { loadConfig } from "../core/config.js";
 import { atomicWriteFile, linkCredentialSafe } from "../utils/fs.js";
 import { CODEX_CONSULT_SANDBOX_MODE, assertCodexSandboxMode } from "../core/constants.js";
-
-interface McpServerConfig {
-  type?: string;
-  command?: string;
-  args?: string[];
-  url?: string;
-  headers?: Record<string, string>;
-  env?: Record<string, string>;
-  [key: string]: unknown;
-}
-
-interface ClaudeGlobalConfig {
-  mcpServers?: Record<string, McpServerConfig>;
-  numStartups?: number;
-  installMethod?: string;
-  autoUpdates?: boolean;
-  theme?: string;
-  userID?: string;
-  machineID?: string;
-  oauthAccount?: unknown;
-  [key: string]: unknown;
-}
+import {
+  McpServerConfig,
+  ClaudeGlobalConfig,
+  resolveMcpServerEntries,
+  serializeMcpServersToml
+} from "./config-writer.js";
 
 interface AgentClaudeConfig {
   numStartups: number;
@@ -64,20 +48,6 @@ export function getAgentHome(agentName: string, sessionId?: string): string {
   return resolved;
 }
 
-function escapeTomlString(val: string): string {
-  return val
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "\\r")
-    .replace(/\t/g, "\\t")
-    .replace(/\x08/g, "\\b")
-    .replace(/\x0c/g, "\\f")
-    .replace(/[\x00-\x07\x0b\x0e-\x1f]/g, (c) => {
-      return "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0");
-    });
-}
-
 async function setupGrokConfig(agentHome: string, allowedServers: string[]): Promise<void> {
   const GLOBAL_HOME = resolveGlobalHome();
   const globalClaudeJsonPath = path.join(GLOBAL_HOME, ".claude.json");
@@ -93,63 +63,8 @@ async function setupGrokConfig(agentHome: string, allowedServers: string[]): Pro
     }
 
     let tomlContent = `[cli]\ninstaller = "internal"\n\n[models]\ndefault = "grok-composer-2.5-fast"\n\n`;
-
-    for (const serverName of allowedServers) {
-      let serverConfig = globalJson.mcpServers?.[serverName];
-      if (!serverConfig) {
-        if (serverName === "repowise") {
-          serverConfig = {
-            command: path.join(GLOBAL_HOME, ".local", "bin", "repowise-mcp"),
-            args: ["mcp"]
-          };
-        } else if (serverName === "gitnexus") {
-          serverConfig = {
-            url: process.env.GITNEXUS_URL || "http://127.0.0.1:9401/api/mcp"
-          };
-        }
-      }
-
-      if (serverConfig) {
-        tomlContent += `[mcp_servers.${serverName}]\n`;
-        if (serverConfig.command) {
-          tomlContent += `command = "${escapeTomlString(serverConfig.command)}"\n`;
-          if (serverConfig.args) {
-            tomlContent += `args = [${serverConfig.args.map((a: string) => `"${escapeTomlString(a)}"`).join(", ")}]\n`;
-          }
-        } else if (serverConfig.url) {
-          tomlContent += `url = "${escapeTomlString(serverConfig.url)}"\n`;
-        }
-        tomlContent += `enabled = true\n\n`;
-
-        if (serverConfig.headers && Object.keys(serverConfig.headers).length > 0) {
-          let hasHeaders = false;
-          let headersToml = `[mcp_servers.${serverName}.headers]\n`;
-          for (const [hk, hv] of Object.entries(serverConfig.headers)) {
-            if (/^[a-zA-Z0-9_\-]+$/.test(hk)) {
-              headersToml += `${hk} = "${escapeTomlString(String(hv))}"\n`;
-              hasHeaders = true;
-            }
-          }
-          if (hasHeaders) {
-            tomlContent += headersToml + `\n`;
-          }
-        }
-
-        if (serverConfig.env && Object.keys(serverConfig.env).length > 0) {
-          let hasEnv = false;
-          let envToml = `[mcp_servers.${serverName}.env]\n`;
-          for (const [ek, ev] of Object.entries(serverConfig.env)) {
-            if (/^[a-zA-Z0-9_\-]+$/.test(ek)) {
-              envToml += `${ek} = "${escapeTomlString(String(ev))}"\n`;
-              hasEnv = true;
-            }
-          }
-          if (hasEnv) {
-            tomlContent += envToml + `\n`;
-          }
-        }
-      }
-    }
+    const entries = resolveMcpServerEntries(allowedServers, globalJson, GLOBAL_HOME);
+    tomlContent += serializeMcpServersToml(entries, "enabled = true");
 
     await atomicWriteFile(targetGrokConfig, tomlContent);
   } catch (err: unknown) {
@@ -174,63 +89,8 @@ async function setupCodexConfig(agentHome: string, allowedServers: string[]): Pr
 
     assertCodexSandboxMode(CODEX_CONSULT_SANDBOX_MODE);
     let tomlContent = `model = "gpt-5.5"\napproval_policy = "on-request"\nsandbox_mode = "${CODEX_CONSULT_SANDBOX_MODE}"\n\n`;
-
-    for (const serverName of allowedServers) {
-      let serverConfig = globalJson.mcpServers?.[serverName];
-      if (!serverConfig) {
-        if (serverName === "repowise") {
-          serverConfig = {
-            command: path.join(GLOBAL_HOME, ".local", "bin", "repowise-mcp"),
-            args: ["mcp"]
-          };
-        } else if (serverName === "gitnexus") {
-          serverConfig = {
-            url: process.env.GITNEXUS_URL || "http://127.0.0.1:9401/api/mcp"
-          };
-        }
-      }
-
-      if (serverConfig) {
-        tomlContent += `[mcp_servers.${serverName}]\n`;
-        if (serverConfig.command) {
-          tomlContent += `command = "${escapeTomlString(serverConfig.command)}"\n`;
-          if (serverConfig.args) {
-            tomlContent += `args = [${serverConfig.args.map((a: string) => `"${escapeTomlString(a)}"`).join(", ")}]\n`;
-          }
-        } else if (serverConfig.url) {
-          tomlContent += `url = "${escapeTomlString(serverConfig.url)}"\n`;
-        }
-        tomlContent += `startup_timeout_sec = 30\n\n`;
-
-        if (serverConfig.headers && Object.keys(serverConfig.headers).length > 0) {
-          let hasHeaders = false;
-          let headersToml = `[mcp_servers.${serverName}.headers]\n`;
-          for (const [hk, hv] of Object.entries(serverConfig.headers)) {
-            if (/^[a-zA-Z0-9_\-]+$/.test(hk)) {
-              headersToml += `${hk} = "${escapeTomlString(String(hv))}"\n`;
-              hasHeaders = true;
-            }
-          }
-          if (hasHeaders) {
-            tomlContent += headersToml + `\n`;
-          }
-        }
-
-        if (serverConfig.env && Object.keys(serverConfig.env).length > 0) {
-          let hasEnv = false;
-          let envToml = `[mcp_servers.${serverName}.env]\n`;
-          for (const [ek, ev] of Object.entries(serverConfig.env)) {
-            if (/^[a-zA-Z0-9_\-]+$/.test(ek)) {
-              envToml += `${ek} = "${escapeTomlString(String(ev))}"\n`;
-              hasEnv = true;
-            }
-          }
-          if (hasEnv) {
-            tomlContent += envToml + `\n`;
-          }
-        }
-      }
-    }
+    const entries = resolveMcpServerEntries(allowedServers, globalJson, GLOBAL_HOME);
+    tomlContent += serializeMcpServersToml(entries, "startup_timeout_sec = 30");
 
     await atomicWriteFile(targetCodexConfig, tomlContent);
   } catch (err: unknown) {
@@ -289,30 +149,12 @@ export async function setupAgentMcpConfig(agentName: string, role: string, sessi
       }
     };
 
-    // 4. Настраиваем разрешенные серверы
+    // 4. Настраиваем разрешенные серверы через единый резолвер (тот же, что у codex/grok)
+    const entries = resolveMcpServerEntries(allowedServers, globalJson, GLOBAL_HOME);
+    for (const { name, config } of entries) {
+      agentJson.mcpServers[name] = config;
+    }
     for (const serverName of allowedServers) {
-      // Если сервер есть в глобальном конфиге, копируем его настройки с очисткой секретов
-      if (globalJson.mcpServers && globalJson.mcpServers[serverName]) {
-        const originalServer = globalJson.mcpServers[serverName];
-        const serverCopy = JSON.parse(JSON.stringify(originalServer));
-        agentJson.mcpServers[serverName] = serverCopy;
-      } else {
-        // Дефолтные настройки для некоторых серверов
-        if (serverName === "repowise") {
-          agentJson.mcpServers["repowise"] = {
-            type: "stdio",
-            command: path.join(GLOBAL_HOME, ".local", "bin", "repowise-mcp"),
-            args: ["mcp"]
-          };
-        } else if (serverName === "gitnexus") {
-          agentJson.mcpServers["gitnexus"] = {
-            type: "http",
-            url: process.env.GITNEXUS_URL || "http://127.0.0.1:9401/api/mcp",
-            headers: {}
-          };
-        }
-      }
-
       // Добавляем разрешения для этого сервера
       agentJson.permissions.allow.push(`mcp/${serverName}`);
       agentJson.permissions.allow.push(`mcp/${serverName}/*`);

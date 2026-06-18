@@ -25,8 +25,8 @@ async function test() {
   console.log(programmerPrompt.substring(0, 150) + "...");
 
   console.log("\n=== ТЕСТИРОВАНИЕ ПОДКЛЮЧЕНИЯ (БЕЗ КЛЮЧА) ===");
-  const isAlive = await checkOpenRouterLiveness(config.openrouter_api_key);
-  console.log(`OpenRouter доступен: ${isAlive ? "Да" : "Нет (или ключ не задан)"}`);
+  const liveness = await checkOpenRouterLiveness(config.openrouter_api_key);
+  console.log(`OpenRouter доступен: ${liveness.ok ? "Да" : `Нет (${liveness.reason})`}`);
   
   console.log("\nТестирование локальных компонентов успешно завершено!");
 }
