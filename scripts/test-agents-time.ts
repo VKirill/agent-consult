@@ -1,5 +1,5 @@
-import { loadConfig, ensureAgentHomeDirs } from "./config.js";
-import { runConsultation } from "./consult-orchestrator.js";
+import { loadConfig, ensureAgentHomeDirs } from "../dist/config.js";
+import { runConsultation } from "../dist/consult-orchestrator.js";
 
 const question = `Как оптимизировать обработку ошибок и ретраи при сетевых сбоях или таймаутах OpenRouter API в модуле \`src/openrouter-client.ts\` нашего проекта?
 Предложи улучшения по следующим направлениям:

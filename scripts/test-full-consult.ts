@@ -1,5 +1,5 @@
-import { loadConfig, ensureAgentHomeDirs } from "./config.js";
-import { runConsultation } from "./consult-orchestrator.js";
+import { loadConfig, ensureAgentHomeDirs } from "../dist/config.js";
+import { runConsultation } from "../dist/consult-orchestrator.js";
 
 async function testFullConsult() {
   console.log("=== ТЕСТ ПОЛНОГО ЦИКЛА АГЕНТ КОНСАЛТ (ВСЕ 5 АГЕНТОВ + СИНТЕЗ) ===");

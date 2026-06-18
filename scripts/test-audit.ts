@@ -1,9 +1,9 @@
-import { logAuditToolCall } from "./utils/audit-logger.js";
+import { logAuditToolCall } from "../dist/utils/audit-logger.js";
 // @ts-ignore
 import { DatabaseSync } from "node:sqlite";
 import path from "path";
 import fs from "fs";
-import { resolveGlobalHome } from "./core/paths.js";
+import { resolveGlobalHome } from "../dist/core/paths.js";
 
 async function testAuditLogging() {
   console.log("=== ТЕСТ SQLite АУДИТ-ЛОГГЕРА (consult-audit) ===");

@@ -1,5 +1,5 @@
-import { loadConfig, loadRolePrompt, ensureAgentHomeDirs } from "./config.js";
-import { checkOpenRouterLiveness } from "./openrouter-client.js";
+import { loadConfig, loadRolePrompt, ensureAgentHomeDirs } from "../dist/config.js";
+import { checkOpenRouterLiveness } from "../dist/openrouter-client.js";
 
 async function test() {
   console.log("=== ИНИЦИАЛИЗАЦИЯ И КОПИРОВАНИЕ НАСТРОЕК ===");

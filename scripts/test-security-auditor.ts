@@ -1,5 +1,5 @@
-import { loadConfig } from "./config.js";
-import { runConsultation } from "./consult-orchestrator.js";
+import { loadConfig } from "../dist/config.js";
+import { runConsultation } from "../dist/consult-orchestrator.js";
 
 async function testSecurityAuditor() {
   console.log("=== ТЕСТИРОВАНИЕ РОЛИ SECURITY_AUDITOR ===");

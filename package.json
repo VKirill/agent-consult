@@ -8,7 +8,12 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "node --experimental-strip-types src/index.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "diagnose:ping": "node dist/ping-agents.js",
+    "diagnose:mcp": "node --experimental-strip-types scripts/test-mcp-direct.ts",
+    "diagnose:dynamic-mcp": "node --experimental-strip-types scripts/test-dynamic-mcp.ts",
+    "diagnose:full": "node --experimental-strip-types scripts/test-full-consult.ts",
+    "diagnose:local": "node --experimental-strip-types scripts/test-local.ts"
   },
   "keywords": [
     "mcp",

@@ -1,4 +1,4 @@
-import { setupAgentMcpConfig, ensureAgentHomeDirs, AGENT_HOMES_ROOT, loadConfig, resolveGlobalHome } from "./config.js";
+import { setupAgentMcpConfig, ensureAgentHomeDirs, AGENT_HOMES_ROOT, loadConfig, resolveGlobalHome } from "../dist/config.js";
 import fs from "fs/promises";
 import path from "path";
 
