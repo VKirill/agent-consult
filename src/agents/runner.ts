@@ -18,6 +18,7 @@ import { queryOpenRouter, AgentResponse } from "../openrouter-client.js";
 import { loadPersonalityPrompt } from "../core/config.js";
 import { cleanAndValidateModel, buildCliArgs, sanitizeEnvPath, buildChildEnv } from "./cli/invocation.js";
 import { parseClaudeStreamLine } from "./cli/claude-stream.js";
+import { detectsInteractiveAuth, detectToolActivity, parseToolNameFromText } from "./cli/output-filters.js";
 
 export const activeChildPids = new Set<number>();
 export const activeSessionDirs = new Set<string>();
@@ -273,37 +274,12 @@ export async function queryLocalCLI(
 
       const onDataReceived = (source: "stdout" | "stderr", textContext?: string) => {
         const now = Date.now();
-        let detectedToolCall = false;
-        let detectedToolResult = false;
-
-        if (textContext) {
-          const lower = textContext.toLowerCase();
-          if (
-            lower.includes("calling tool") ||
-            lower.includes("using tool") ||
-            lower.includes("tool_use") ||
-            lower.includes("callmcptool") ||
-            lower.includes("running tool") ||
-            lower.includes("вызов инструмента") ||
-            lower.includes("запуск инструмента")
-          ) {
-            detectedToolCall = true;
-          }
-          if (
-            lower.includes("tool_result") ||
-            lower.includes("вернул результат") ||
-            lower.includes("tool completed") ||
-            lower.includes("tool output")
-          ) {
-            detectedToolResult = true;
-          }
-        }
+        const { isToolCall: detectedToolCall, isToolResult: detectedToolResult } = detectToolActivity(textContext);
 
         if (detectedToolCall) {
           isExecutingTool = true;
           if (agentName !== "claude") {
-            const match = textContext ? textContext.match(/(?:calling|using|running|tool|инструмента)\s+([a-zA-Z0-9_\-/]+)/i) : null;
-            const parsedToolName = match ? match[1] : "unknown_mcp_tool";
+            const parsedToolName = parseToolNameFromText(textContext);
             logAuditToolCall({
               sessionId: sessionId || "global",
               agentName,
@@ -336,21 +312,7 @@ export async function queryLocalCLI(
       let finalResult = "";
 
       const checkForInteractiveAuth = (chunk: Buffer): boolean => {
-        const outputToCheck = chunk.toString();
-        if (
-          outputToCheck.includes("includes") ||
-          outputToCheck.includes("outputToCheck") ||
-          outputToCheck.includes("const ") ||
-          outputToCheck.includes("function")
-        ) {
-          return false;
-        }
-
-        const hasClaudeAuth = /To sign in, open this URL:\s*https?:\/\//i.test(outputToCheck);
-        const hasCodexAuth = /Confirm this code|Waiting for authorization/i.test(outputToCheck);
-        const hasGrokAuth = /oauth2\/device/i.test(outputToCheck) && /https?:\/\//i.test(outputToCheck);
-
-        if (hasClaudeAuth || hasCodexAuth || hasGrokAuth) {
+        if (detectsInteractiveAuth(chunk.toString())) {
           terminateProcess(`Локальный CLI ${agentName} не авторизован (требуется интерактивный вход). Опрос прерван.`, "SIGKILL");
           return true;
         }
