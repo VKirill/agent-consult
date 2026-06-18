@@ -21,6 +21,7 @@ import { parseClaudeStreamLine } from "./cli/claude-stream.js";
 import { detectsInteractiveAuth, detectToolActivity, parseToolNameFromText, isIgnorableStderrLine, isErrorLikeStderrLine } from "./cli/output-filters.js";
 import { killProcessGroup as killProcessGroupImpl } from "./cli/process-supervisor.js";
 import { detectAndReadSessionArtifacts } from "./cli/session-artifacts.js";
+import { TimeoutController, ABSOLUTE_TIMEOUT_FLOOR_MS } from "./cli/timeout-controller.js";
 
 export const activeChildPids = new Set<number>();
 export const activeSessionDirs = new Set<string>();
@@ -130,66 +131,23 @@ export async function queryLocalCLI(
       const stderrChunks: Buffer[] = [];
       let totalStdoutBytes = 0;
       let totalStderrBytes = 0;
-      let isSettled = false;
-
       const startTime = Date.now();
-      const ABSOLUTE_TIMEOUT_MS = Math.max(timeoutMs, 600000);
-      const INITIAL_IDLE_TIMEOUT_MS = 120000;
-      const ACTIVE_IDLE_TIMEOUT_MS = 90000;
-
-      let absoluteTimer: NodeJS.Timeout | undefined;
-      let idleTimer: NodeJS.Timeout | undefined;
-      let killEscalationTimer: NodeJS.Timeout | undefined;
-
-      const killProcessGroup = (signal: "SIGTERM" | "SIGKILL" = "SIGTERM") => {
-        killProcessGroupImpl(child.pid, signal, isWindows);
-      };
-
-      const clearAllTimers = () => {
-        if (absoluteTimer) clearTimeout(absoluteTimer);
-        if (idleTimer) clearTimeout(idleTimer);
-        if (killEscalationTimer) clearTimeout(killEscalationTimer);
-      };
-
-      const terminateProcess = (reason: string, signal: "SIGTERM" | "SIGKILL" = "SIGTERM") => {
-        if (isSettled) return;
-        isSettled = true;
-        cleanupPid();
-        clearAllTimers();
-        killProcessGroup(signal);
-        if (signal === "SIGTERM") {
-          killEscalationTimer = setTimeout(() => {
-            killProcessGroup("SIGKILL");
-          }, 3000);
-        }
-        cleanupTempFileSync();
-        reject(new Error(reason));
-      };
-
-      absoluteTimer = setTimeout(() => {
-        terminateProcess(`Превышен абсолютный таймаут ожидания ответа от локального CLI ${agentName} (${ABSOLUTE_TIMEOUT_MS / 1000} сек)`, "SIGTERM");
-      }, ABSOLUTE_TIMEOUT_MS);
-
-      const MCP_TOOL_IDLE_TIMEOUT_MS = 150000;
-      let currentIdleTimeout = INITIAL_IDLE_TIMEOUT_MS;
       let hasReceivedData = false;
       let lastLogTime = 0;
       let isExecutingTool = false;
 
-      const resetIdleTimer = () => {
-        if (isSettled) return;
-        if (idleTimer) clearTimeout(idleTimer);
-
-        idleTimer = setTimeout(() => {
-          const statusStr = isExecutingTool ? " (активное выполнение MCP-инструмента)" : "";
-          terminateProcess(
-            `Превышен таймаут неактивности для локального CLI ${agentName}${statusStr}. Агент не выводил новые данные в течение ${currentIdleTimeout / 1000} сек.`,
-            "SIGTERM"
-          );
-        }, currentIdleTimeout);
-      };
-
-      resetIdleTimer();
+      const timeoutController = new TimeoutController({
+        agentName,
+        pid: child.pid,
+        isWindows,
+        absoluteTimeoutMs: Math.max(timeoutMs, ABSOLUTE_TIMEOUT_FLOOR_MS),
+        onTerminate: (reason) => {
+          cleanupPid();
+          cleanupTempFileSync();
+          reject(new Error(reason));
+        }
+      });
+      timeoutController.start();
 
       const onDataReceived = (source: "stdout" | "stderr", textContext?: string) => {
         const now = Date.now();
@@ -216,13 +174,12 @@ export async function queryLocalCLI(
           hasReceivedData = true;
         }
         
-        currentIdleTimeout = isExecutingTool ? MCP_TOOL_IDLE_TIMEOUT_MS : ACTIVE_IDLE_TIMEOUT_MS;
-        resetIdleTimer();
+        const idleMs = timeoutController.noteActivity(isExecutingTool);
 
         if (now - lastLogTime > 15000) {
           lastLogTime = now;
           const statusStr = isExecutingTool ? "Выполнение MCP-инструмента" : "Генерация текста";
-          process.stderr.write(`[Агент: ${agentName.toUpperCase()}] Активность (${source}, ${statusStr}). Сброс idle-таймера: ${currentIdleTimeout / 1000} сек.\n`);
+          process.stderr.write(`[Агент: ${agentName.toUpperCase()}] Активность (${source}, ${statusStr}). Сброс idle-таймера: ${idleMs / 1000} сек.\n`);
         }
       };
 
@@ -232,7 +189,7 @@ export async function queryLocalCLI(
 
       const checkForInteractiveAuth = (chunk: Buffer): boolean => {
         if (detectsInteractiveAuth(chunk.toString())) {
-          terminateProcess(`Локальный CLI ${agentName} не авторизован (требуется интерактивный вход). Опрос прерван.`, "SIGKILL");
+          timeoutController.terminate(`Локальный CLI ${agentName} не авторизован (требуется интерактивный вход). Опрос прерван.`, "SIGKILL");
           return true;
         }
         return false;
@@ -244,7 +201,7 @@ export async function queryLocalCLI(
         
         totalStdoutBytes += chunk.length;
         if (totalStdoutBytes > 10 * 1024 * 1024) {
-          terminateProcess(`Превышен лимит вывода (stdout) для локального CLI ${agentName} (10 MB)`, "SIGKILL");
+          timeoutController.terminate(`Превышен лимит вывода (stdout) для локального CLI ${agentName} (10 MB)`, "SIGKILL");
           return;
         }
 
@@ -348,7 +305,7 @@ export async function queryLocalCLI(
 
         totalStderrBytes += chunk.length;
         if (totalStderrBytes > 10 * 1024 * 1024) {
-          terminateProcess(`Превышен лимит ошибок (stderr) для локального CLI ${agentName} (10 MB)`, "SIGKILL");
+          timeoutController.terminate(`Превышен лимит ошибок (stderr) для локального CLI ${agentName} (10 MB)`, "SIGKILL");
           return;
         }
 
@@ -379,9 +336,8 @@ export async function queryLocalCLI(
 
       child.on("close", (code) => {
         cleanupPid();
-        if (isSettled) return;
-        isSettled = true;
-        clearAllTimers();
+        if (timeoutController.isSettled) return;
+        timeoutController.markSettled();
         cleanupTempFileSync();
 
         if (stderrLineBuffer.trim()) {
@@ -442,10 +398,9 @@ export async function queryLocalCLI(
 
       child.on("error", (err) => {
         cleanupPid();
-        if (isSettled) return;
-        isSettled = true;
-        clearAllTimers();
-        killProcessGroup();
+        if (timeoutController.isSettled) return;
+        timeoutController.markSettled();
+        killProcessGroupImpl(child.pid, "SIGTERM", isWindows);
         cleanupTempFileSync();
         reject(err);
       });
