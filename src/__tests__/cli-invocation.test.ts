@@ -48,6 +48,11 @@ describe("buildCliArgs", () => {
       "run", "--pure", "--model", "xiaomi/mimo-v2.5-pro"
     ]);
   });
+  it("mimo с reasoning -> добавляет --variant <effort>", () => {
+    expect(buildCliArgs("mimo", "mimo-v2.5-pro", { enable: true, reasoning_effort: "high" }, "", "xiaomi/mimo-v2.5-pro")).toEqual([
+      "run", "--pure", "--model", "xiaomi/mimo-v2.5-pro", "--variant", "high"
+    ]);
+  });
   it("grok передаёт prompt-file и модель, кроме дефолтной 'grok'", () => {
     expect(buildCliArgs("grok", "grok-composer-2.5-fast", undefined, "/tmp/p.txt")).toEqual([
       "--no-memory", "--permission-mode", "auto", "--prompt-file", "/tmp/p.txt", "--model", "grok-composer-2.5-fast"

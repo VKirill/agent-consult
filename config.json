@@ -14,16 +14,16 @@
       "model": "openai/gpt-5.5",
       "system_prefix": "Ты — агент Codex. Твоя сила в алгоритмической точности, глубоком понимании кода и логическом анализе.",
       "reasoning": {
-        "enable": false,
-        "reasoning_effort": "medium"
+        "enable": true,
+        "reasoning_effort": "high"
       }
     },
     "claude": {
-      "model": "sonnet",
+      "model": "opus",
       "system_prefix": "Ты — агент Claude. Твоя сила в глубоком анализе, отличном стиле изложения текста на русском языке и структурированности ответов.",
       "reasoning": {
-        "enable": false,
-        "reasoning_effort": "medium"
+        "enable": true,
+        "reasoning_effort": "high"
       }
     },
     "agy": {
@@ -38,8 +38,8 @@
       "model": "xiaomi/mimo-v2.5-pro",
       "system_prefix": "Ты — агент Mimo. Твоя сила в краткости, выделении сути (key takeaways) и критическом подходе к задачам.",
       "reasoning": {
-        "enable": false,
-        "reasoning_effort": "medium"
+        "enable": true,
+        "reasoning_effort": "high"
       }
     },
     "grok": {

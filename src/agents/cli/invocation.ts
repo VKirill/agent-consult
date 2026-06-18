@@ -64,6 +64,10 @@ export function buildCliArgs(
       if (rawModel) {
         args.push("--model", validateProviderModel(rawModel));
       }
+      // mimo: глубина рассуждений задаётся флагом --variant (high|max|minimal).
+      if (reasoning?.enable && reasoning.reasoning_effort && /^[a-z]+$/.test(reasoning.reasoning_effort)) {
+        args.push("--variant", reasoning.reasoning_effort);
+      }
       return args;
     }
     case "grok": {

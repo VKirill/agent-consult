@@ -2,6 +2,35 @@
 
 All notable changes to the "Agent Consult" project are documented in this file, detailing the rationale behind each technical decision.
 
+## [1.3.0] — 2026-06-18
+
+### Added
+*   **`TimeoutController` + characterization harness**: The fragile spawn/timer/terminate core of `queryLocalCLI` is now an isolated, unit-tested class (`src/agents/cli/timeout-controller.ts`) owning the 3-timer tree (absolute / idle / kill-escalation), settle state and forced termination. A mock-`spawn` harness locks behaviour across all termination paths (idle/MCP-tool-idle timeout, kill-escalation, interactive-auth kill, 10 MB limit, error event, non-zero exit).
+*   **Six `cli/` modules from `queryLocalCLI` decomposition**: `invocation` (argv/model/PATH/env), `claude-stream` (stream-json parser), `output-filters` (auth-detect, tool-activity, stderr noise/error), `process-supervisor` (`killProcessGroup`), `session-artifacts` (agy/gemini brain reader), `timeout-controller`. The 603-line monolith became a thin orchestrator; test count went from 4 to 94.
+*   **Auth-aware OpenRouter liveness**: `checkOpenRouterLiveness` now probes `/api/v1/auth/key` (requires a valid key) and returns `{ ok, reason }` (`ok | missing_key | unauthorized | network`) instead of a misleading boolean from the public `/models` endpoint.
+*   **Per-agent reasoning depth**: `codex` (`-c model_reasoning_effort=high`), `mimo` (`--variant high`) and `claude` (model `opus`) run with high reasoning by default.
+*   **`grok` agent identity**: a dedicated, stable `GROK_IDENTITY_HOME` (`~/.agent-consult/grok-identity`); the agent logs in with its own device session.
+*   **Diagnostics & coverage**: `npm run diagnose:*` scripts; unit tests for config-writer, sandbox-mode validation, liveness, CLI invocation, stream parser, output filters, process supervisor and timeout controller.
+
+### Changed
+*   **`CLAUDE` → `opus`**, and `CODEX`/`MIMO` reasoning set to `high` in `config.json`.
+*   **Unified MCP config writer** (`src/agents/cli/config-writer.ts`): the three duplicated config serializers (codex TOML / grok TOML / claude JSON) now share one `resolveMcpServerEntries` + `serializeMcpServersToml`. `sandbox.ts` shrank 556→426 lines; header filtering happens in a single place.
+*   **`sandbox_mode` typed**: moved to a typed constant with `assertCodexSandboxMode` validation before config write.
+*   **Ad-hoc `test-*` scripts** moved out of `src/` into `scripts/` (excluded from the production build; reachable via `npm run diagnose:*`).
+
+### Fixed
+*   **Codex failed to launch**: an invalid hard-coded `sandbox_mode = "workspace-read"` was written to codex's `config.toml`; corrected to `read-only`.
+*   **Agents could not reach authenticated MCP servers** (gitnexus/context7): the config writer stripped the `Authorization` header (name contains "auth"); the filter was removed across all three writers.
+*   **Double `config.toml` write**: `ensureAgentHomeDirs` no longer writes a conflicting minimal codex config — `setupCodexConfig` is the sole owner (it previously clobbered the MCP section and sandbox_mode on re-invocation).
+*   **`GROK` logged the user out of their host account**: the sandbox shared the host `~/.grok` OAuth token; grok rotates refresh tokens on use, invalidating the host session on every run. The agent now uses its own identity and never touches `~/.grok`.
+*   **`MIMO` returned empty answers**: the local `mimocode` CLI was invoked without `--model` (defaulting to the free "mimo-auto" → `403 Illegal access`) and without the subscription key. Now passes the full `--model` and symlinks the `mimocode` subscription `auth.json` into the sandbox.
+
+### Removed
+*   **Fallback model chains** (`DEFAULT_FALLBACK_CHAINS`): the council now uses strictly the configured model / CLI subscription, with no cloud substitutions.
+*   **`gemini` agent** (`google/gemini-2.5-pro`): fully disabled — removed from config, `LOCAL_AGENTS`, ping/analysis lists and home bootstrap; it no longer appears in status or polls. (`agy`, also on the antigravity CLI but model `gemini-3.5-flash`, is unaffected.)
+
+---
+
 ## [1.2.0] — 2026-06-16
 
 ### Added
